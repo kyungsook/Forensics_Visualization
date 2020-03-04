@@ -2,11 +2,11 @@
 ===================================
 2020 Spring Semester Capstone Design Project 2
 
-# Development Goals
+## Development Goals
 
 * 스토리지의 대용량화가 점점 진행되고, 국내법에 따른 선별수사(실제 모든 데이터가 아닌 필요한 데이터만 압수하는 것) 정책에 따라 실제 압수시에 필요한 데이터를 찾는데 시간을 줄이는 것이 중요한 시대가 되었다. 해당 툴은 특정 시간대에 변화되거나, 접근된 파일들을 시각화해서 접근 빈도등을 보여줌으로써, 선별 압수시에 도움이 되는 기능을 제공하는 것이 목표이다.
 
-# Development Details and Requirements
+## Development Details and Requirements
 
 * Details
 > 1. 파일 타입/접근/생성/삭제 시간 빈도 시각화
@@ -27,6 +27,6 @@
 
 > 2. 애자일 등을 이용한 스프린트 방식으로 개발을 진행한다.     
 
-# Utilization
+## Utilization
 
 * 현재 수사에 필요한 선별 압수에 도움이 되는 툴을 개발하고, 시각화/증거 이미지 등에 대한 정보들을 배운다.
