@@ -161,7 +161,7 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
         self.generateView(self.read_FAT_DATA.get_content(self.read_cluster), self.read_cluster)
 
     # generateView ... Generates text view for hexdump likedness.
-    def generateView(self, text,cluster):
+    def generateView(self, text, cluster):
 
         space = ' '
         rowSpacing = 4  # How many bytes before a double space.
