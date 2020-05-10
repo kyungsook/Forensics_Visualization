@@ -69,6 +69,9 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
 
 
         self.byteWidth = 2  # How many bits to include in a byte.
+        self.space = ' '
+        self.rowSpacing = 4  # How many bytes before a double space.
+        self.rowLength = 16  # 헥사 창에 얼마나 많은 byte 가 들어갈 것인지
         self.mode = Mode.READ
         self.initUI()
         self.read_cluster=2
@@ -160,12 +163,8 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
         self.read_FAT_DATA.file_list.sort(key=itemgetter('lad'), reverse=True)
         self.generateView(self.read_FAT_DATA.get_content(self.read_cluster), self.read_cluster)
 
-    # generateView ... Generates text view for hexdump likedness.
-    def generateView(self, text, cluster):
-
-        space = ' '
-        rowSpacing = 4  # How many bytes before a double space.
-        rowLength = 16  # 헥사 창에 얼마나 많은 byte 가 들어갈 것인지
+    def offsetTextView(self, text, cluster):    #offset text 생성하는 함수
+        offsetText = ''
 
         if cluster == 0:
             offset = 0
@@ -173,34 +172,37 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
         else:
             offset = ((cluster - 2) * self.read_FAT_DATA.spc + self.read_FAT_DATA.first_data_sector) * 512
 
-        offsetText = ''
+        for chars in range(1, len(text) + 1):
+            if chars % self.rowLength == 0 and chars != 0:
+                offsetText += format(offset, '08x')+'\n'
+                offset += 16
+
+        return offsetText
+
+    def mainTextView(self, text):               #main text 생성하는 함수
         mainText = ''
-        asciiText = ''
-
-        for i in reversed(range(self.button_list_area.count())):
-            self.button_list_area.itemAt(i).widget().setParent(None)
-        for i in reversed(range(self.file_button_list_area.count())):
-            self.file_button_list_area.itemAt(i).widget().setParent(None)
-
-        button_data = []
-        file_button_data = []
-
-        for i in self.read_FAT_DATA.dir_list:
-            if 'name' in i:
-                button_data.append(i['name'])
-
-            else:
-                button_data.append(i['sname'])
-
-        for i in self.read_FAT_DATA.file_list:
-            if 'name' in i:
-                file_button_data.append(i['name'])
-            else:
-                file_button_data.append(i['sname'])
-
 
         for chars in range(1, len(text) + 1):
             byte = text[chars - 1]
+
+            # main text 가 중앙에 있는것
+            mainText += format(byte, '02X')
+
+            if chars % self.rowLength == 0 and chars != 0:
+                mainText += '\n'
+
+            elif chars % self.rowSpacing == 0:
+                mainText += self.space * 2
+
+            else:
+                mainText += self.space
+
+        return mainText
+
+    def asciiTextView(self, text):          #tab의 ascii text 생성하는 함수
+        asciiText = ''
+
+        for chars in range(1, len(text) + 1):
             char = chr(text[chars - 1])
 
             # Asciitext 는 오른쪽 출력부
@@ -212,118 +214,103 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
 
             else:
                 asciiText += char
-            # main text 가 중앙에 있는것
-            mainText += format(byte, '02X')
 
-            if chars % rowLength == 0 and chars != 0:
-                offsetText += format(offset, '08x')+'\n'
-                offset += 16
-                mainText += '\n'
-                #asciiText += '\n'
+        return asciiText
 
-            elif chars % rowSpacing == 0:
-                mainText += space * 2
+    def TextView(self, text):           #tab의 text 생성하는 함수
+        _text = ''
 
-            else:
-                mainText += space
+        text_list = list(text)
+        for i in range(len(text_list)):
+            _text += chr(text_list[i])
 
-        out = ''
-        byte_arr = QByteArray(text)
+        return _text
 
-        val = self.QByteArrayToString(byte_arr)
-        a = list(val.split(','))
-        for i in range(len(a)):
-            if int(a[i]) != 0:
-                out += chr(int(a[i]))
-
+    def imageView(self, text, cluster):     #사진파일일 경우, 사진 생성하는 함수
         for i in self.read_FAT_DATA.file_list:
             if i['cluster'] == cluster:
-                #byte_arr = QByteArray(text)
-                self.asciiImageArea.loadFromData(byte_arr, i['ext'])
+                self.asciiImageArea.loadFromData(QByteArray(text), i['ext'])
 
 
-        self.offsetTextArea.setText(offsetText)
-        self.mainTextArea.setText(mainText)
-        self.asciiTextArea.setText(asciiText)
-        self.TextArea.setText(out)
+    def makeDirButton(self):        #dir 버튼 생성하기 위한 리스트를 만드는 함수
+        button_data = []
+
+        for i in self.read_FAT_DATA.dir_list:
+            if 'name' in i:
+                button_data.append(i['name'])   #long name
+
+            else:
+                button_data.append(i['sname'])  #short name
+
+        return button_data
+
+    def makeFileButton(self):       #파일 버튼 생성하기 위한 리스트를 만드는 함수
+        file_button_data = []
+
+        for i in self.read_FAT_DATA.file_list:
+            if 'name' in i:
+                file_button_data.append(i['name'])
+            else:
+                file_button_data.append(i['sname'])
+
+        return file_button_data
+
+    """
+    Generates text view for hexdump likedness
+    dir 버튼 눌렀을 때 UI 변화
+    """
+    def generateView(self, text, cluster):
+
+        #디렉토리 버튼 눌렀을 때 버튼 누적 추가되지 않도록 함
+        for i in reversed(range(self.button_list_area.count())):
+            self.button_list_area.itemAt(i).widget().setParent(None)
+        for i in reversed(range(self.file_button_list_area.count())):
+            self.file_button_list_area.itemAt(i).widget().setParent(None)
 
 
-        button_list_info = self.btn_list(button_data, 0)
-        file_button_list_info=self.btn_list(file_button_data, 1)
+        dirButtonList = self.makeDirButton()    #dir 버튼 리스트를 만들기
+        fileButtonList = self.makeFileButton()  #file 버튼 리스트를 만들기
 
-        for i in range(len(button_list_info)):
+        button_list_info = self.btn_list(dirButtonList, 0)  #dir 버튼 생성하기
+        file_button_list_info=self.btn_list(fileButtonList, 1)  #file 버튼 생성하기
+
+        for i in range(len(button_list_info)):  #dir 버튼 클릭했을 때 이벤트 connect
             self.button_list_area.addWidget(button_list_info[i])
-            button_list_info[i].clicked.connect(lambda state,a=i: self.button_on_clicked(button_data[a]))
+            button_list_info[i].clicked.connect(lambda state, a=i: self.button_on_clicked(dirButtonList[a]))
 
-        for i in range(len(file_button_list_info)):
+        for i in range(len(file_button_list_info)): #file 버튼 클릭했을 때 이벤트 connect
             self.file_button_list_area.addWidget(file_button_list_info[i])
-            file_button_list_info[i].clicked.connect(lambda state, a=i: self.file_button_on_clicked(file_button_data[a]))
+            file_button_list_info[i].clicked.connect(lambda state, a=i: self.file_button_on_clicked(fileButtonList[a]))
 
-        self.button_list_area.setAlignment(Qt.AlignTop)
-        self.file_button_list_area.setAlignment(Qt.AlignTop)
+
+        self.offsetTextArea.setText(self.offsetTextView(text, cluster)) #offset 출력
+        self.mainTextArea.setText(self.mainTextView(text))              #main text 출력 (hex값)
+        self.asciiTextArea.setText(self.asciiTextView(text))            #ascii text 출력
+
+        self.TextArea.setText(self.TextView(text))                      #text 탭에 text 출력
+
+        self.imageView(text, cluster)                                   #이미지 파일일 경우 이미지 출력
         self.Imagelb.setPixmap(self.asciiImageArea)
 
+        self.button_list_area.setAlignment(Qt.AlignTop)                 #dir 버튼 출력
+        self.file_button_list_area.setAlignment(Qt.AlignTop)            #file 버튼 출력
+
+    """
+    file 버튼 눌렀을 때 UI 변화
+    """
     def file_generateView(self, text,cluster):
-        space = ' '
 
-        rowSpacing = 4
-        rowLength = 16
+        self.offsetTextArea.setText(self.offsetTextView(text, cluster))
+        self.mainTextArea.setText(self.mainTextView(text))
+        self.asciiTextArea.setText(self.asciiTextView(text))
 
-        offset = ((cluster - 2) * self.read_FAT_DATA.spc + self.read_FAT_DATA.first_data_sector) *512
-        offsetText = ''
-        mainText = ''
-        asciiText = ''
+        self.TextArea.setText(self.TextView(text))
 
-        for chars in range(1, len(text) + 1):
-            byte = text[chars - 1]
-            char = chr(text[chars - 1])
-
-            # Asciitext 는 오른쪽 출력부
-            if char is ' ':
-                asciiText += '.'
-
-            elif char is '\n' or char is '\r':
-                asciiText += '.'
-
-            else:
-                asciiText += char
-            # main text 가 중앙에 있는것
-            mainText += format(byte, '02X')
-
-            if chars % rowLength is 0 and chars != 0:
-                offsetText += format(offset, '08x')+'\n'
-                offset += 16
-                mainText += '\n'
-                asciiText += '\n'
-
-            elif chars % rowSpacing is 0:
-                mainText += space * 2
-
-            else:
-                mainText += space
-
-        out = ''
-        byte_arr = QByteArray(text)
-
-        val = self.QByteArrayToString(byte_arr)
-
-        a = list(val.split(','))
-        for i in range(len(a)):
-            if int(a[i]) != 0:
-                out += chr(int(a[i]))
-
-        for i in self.read_FAT_DATA.file_list:
-            if i['cluster'] == cluster:
-                self.asciiImageArea.loadFromData(byte_arr, i['ext'])
-
-        self.offsetTextArea.setText(offsetText)
-        self.mainTextArea.setText(mainText)
-        self.asciiTextArea.setText(asciiText)
-        self.TextArea.setText(out)
-
-        self.button_list_area.setAlignment(Qt.AlignTop)
-        self.file_button_list_area.setAlignment(Qt.AlignTop)
+        self.imageView(text, cluster)
         self.Imagelb.setPixmap(self.asciiImageArea)
+
+        #self.button_list_area.setAlignment(Qt.AlignTop)
+        #self.file_button_list_area.setAlignment(Qt.AlignTop)
 
 
     def QByteArrayToString(self, _val):
@@ -360,23 +347,25 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
 
         return button
 
+    def timeToString(self, entry, date_type, time_type):
+        time_string = str(((entry[date_type] & 65024) >> 9) + 1980) + '/' + str(
+            (entry[date_type] & 480) >> 5) + '/' + str(entry[date_type] & 31) + ' - ' + str(
+            (entry[time_type] & 63488) >> 11) + ':' + str(
+            (entry[time_type] & 2016) >> 5) + ':' + str(
+            (entry[time_type] & 31) * 2)
+
+        return time_string
+
+
     def button_on_clicked(self, name):
         for i in self.read_FAT_DATA.dir_list:
-            if (name==i['sname']) or ('name' in i and name ==i['name']) :
+            if (name == i['sname']) or ('name' in i and name == i['name']):
+
+                create_string = self.timeToString(i, 'create_date', 'create_time')
+                write_string = self.timeToString(i, 'write_date', 'write_time')
+
                 if 'del' in i:
                     i['real_ext'] = 'Deleted Directory'
-                    create_string = str(((i['create_date'] & 65024) >> 9) + 1980) + '/' + str(
-                            (i['create_date'] & 480) >> 5) + '/' + str(i['create_date'] & 31) + ' - ' + str(
-                                            (i['create_time'] & 63488) >> 11) + ':' + str(
-                                            (i['create_time'] & 2016) >> 5) + ':' + str(
-                                            (i['create_time'] & 31) * 2)
-
-                    write_string = str(((i['write_date'] & 65024) >> 9) + 1980) + '/' + str(
-                            (i['write_date'] & 480) >> 5) + '/' + str(i['write_date'] & 31) + ' - ' + str(
-                                           (i['write_time'] & 63488) >> 11) + ':' + str(
-                                           (i['write_time'] & 2016) >> 5) + ':' + str(
-                                           (i['write_time'] & 31) * 2)
-
                     infoText = 'File Extension: ' + i['ext'] + '\nFile Signature: ' + i[
                         'real_ext'] + '\nSize: ' + str(
                         i['size']) + '\ncreate: ' + create_string + '\nwrite: ' + write_string
@@ -392,23 +381,12 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
                     self.read_cluster=i['cluster']
                     if self.read_cluster == 0:
                        self.read_cluster=2
-                    #self.read_FAT_DATA.renew_list()
+
                     i['real_ext'] = 'Directory'
-                    create_string = str(((i['create_date'] & 65024) >> 9) + 1980) + '/' + str(
-                        (i['create_date'] & 480) >> 5) + '/' + str(i['create_date'] & 31) + ' - ' + str(
-                        (i['create_time'] & 63488) >> 11) + ':' + str(
-                        (i['create_time'] & 2016) >> 5) + ':' + str(
-                        (i['create_time'] & 31) * 2)
-
-                    write_string = str(((i['write_date'] & 65024) >> 9) + 1980) + '/' + str(
-                        (i['write_date'] & 480) >> 5) + '/' + str(i['write_date'] & 31) + ' - ' + str(
-                        (i['write_time'] & 63488) >> 11) + ':' + str(
-                        (i['write_time'] & 2016) >> 5) + ':' + str(
-                        (i['write_time'] & 31) * 2)
-
                     infoText = 'File Extension: ' + i['ext'] + '\nFile Signature: ' + i[
                         'real_ext'] + '\nSize: ' + str(
                         i['size']) + '\ncreate: ' + create_string + '\nwrite: ' + write_string
+
                     self.infoArea.setText(infoText)
                     self.asciiImageArea.loadFromData(QByteArray(b''), i['ext'])
                     self.Imagelb.setPixmap(self.asciiImageArea)
@@ -418,21 +396,12 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
 
     def file_button_on_clicked(self, name):
         for i in self.read_FAT_DATA.file_list:
-            if (name==i['sname']) or ('name' in i and name ==i['name']) :
+            if (name == i['sname']) or ('name' in i and name == i['name']):
                 if 'del' in i:
                     print("it's delete")
                     i['real_ext']='Deleted File'
-                    create_string = str(((i['create_date'] & 65024) >> 9) + 1980) + '/' + str(
-                        (i['create_date'] & 480) >> 5) + '/' + str(i['create_date'] & 31) + ' - ' + str(
-                        (i['create_time'] & 63488) >> 11) + ':' + str(
-                        (i['create_time'] & 2016) >> 5) + ':' + str(
-                        (i['create_time'] & 31) * 2)
-
-                    write_string = str(((i['write_date'] & 65024) >> 9) + 1980) + '/' + str(
-                        (i['write_date'] & 480) >> 5) + '/' + str(i['write_date'] & 31) + ' - ' + str(
-                        (i['write_time'] & 63488) >> 11) + ':' + str(
-                        (i['write_time'] & 2016) >> 5) + ':' + str(
-                        (i['write_time'] & 31) * 2)
+                    create_string = self.timeToString(i, 'create_date', 'create_time')
+                    write_string = self.timeToString(i, 'write_date', 'write_time')
 
                     infoText = 'File Extension: ' + i['ext'] + '\nFile Signature: ' + i[
                         'real_ext'] + '\nSize: ' + str(
@@ -445,34 +414,14 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
                     self.infoArea.setText(infoText)
                     break;
 
-                if 'size'==0 in i: #파일 목록에서 디렉토리일때
-                    self.read_cluster = i['cluster']
-                    if self.read_cluster == 0:
-                        self.read_cluster = 2
-                    # self.read_FAT_DATA.renew_list()
-
-                else:
-                    #self.read_cluster=i['cluster']
-                    if self.read_cluster == 0:
-                      self.read_cluster=2
-                   # self.read_FAT_DATA.renew_list()
-
-                create_string = str(((i['create_date'] & 65024) >> 9) + 1980) + '/' + str(
-                    (i['create_date'] & 480) >> 5) + '/' + str(i['create_date'] & 31) + ' - ' + str(
-                    (i['create_time'] & 63488) >> 11) + ':' + str(
-                    (i['create_time'] & 2016) >> 5) + ':' + str(
-                    (i['create_time'] & 31) * 2)
-
-                write_string = str(((i['write_date'] & 65024) >> 9) + 1980) + '/' + str(
-                    (i['write_date'] & 480) >> 5) + '/' + str(i['write_date'] & 31) + ' - ' + str(
-                    (i['write_time'] & 63488) >> 11) + ':' + str(
-                    (i['write_time'] & 2016) >> 5) + ':' + str(
-                    (i['write_time'] & 31) * 2)
+                create_string = self.timeToString(i, 'create_date', 'create_time')
+                write_string = self.timeToString(i, 'write_date', 'write_time')
 
                 infoText = 'File Extension: ' + i['ext'] + '\nFile Signature: ' + i[
                     'real_ext'] + '\nSize: ' + str(i['size']) + '\ncreate: ' + create_string + '\nwrite: ' + write_string
                 self.infoArea.setText(infoText)
                 self.file_generateView(self.read_FAT_DATA.get_content(i['cluster']), i['cluster'])
+
 
     # highlightMain ... Bi-directional highlighting from main.
     def highlightMain(self):
