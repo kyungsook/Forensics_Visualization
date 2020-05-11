@@ -8,11 +8,6 @@ class DBManager:
         self.con = sqlite3.connect(self.dbName)
         self.cur = self.con.cursor()
         self.create_table()
-        key = '1'
-        valType = '11'
-        valName = '111'
-        val = '11111'
-        self.cur.execute("INSERT INTO Hive Values (?, ?, ?, ?);", [key, valType, valName, val])
 
     def create_table(self):
         # self.cur.execute("CREATE TABLE IF NOT EXISTS Hive(Key text, ValueType text, ValueName text, Value text, Timestamp text);")
