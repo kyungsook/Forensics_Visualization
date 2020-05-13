@@ -312,7 +312,6 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
         #self.button_list_area.setAlignment(Qt.AlignTop)
         #self.file_button_list_area.setAlignment(Qt.AlignTop)
 
-
     def QByteArrayToString(self, _val):
         out_str = ''
         for i in range(_val.count()):

@@ -23,7 +23,7 @@ import ntpath
 from enum import Enum
 
 import RegistryParse
-import sqlite3
+import DBManager
 
 RegSZ = 0x0001
 RegExpandSZ = 0x0002
@@ -458,26 +458,33 @@ def rec(key, depth=0):
 
 def print_all(key):
     if len(key.subkeys()) == 0:
-        # print(key.path())
-        insert_db(key.path())
+        print(key.path())
     else:
         for k in key.subkeys():
             print_all(k)
 
-def insert_db(val):
-    cur = con.cursor()
-    # cur.execute("INSERT INTO Hive Values (%s)", val)
-    cur.execute("INSERT INTO Hive Values (?);", [val])
+def write_db(key, myDB, depth=0):
+    for subkey in key.subkeys():
+        write_db(subkey, myDB, depth + 1)
+        for value in [v for v in key.values() if
+                      v.value_type() == RegistryParse.RegSZ or v.value_type() == RegistryParse.RegExpandSZ]:
+            _text = ""
+            if isinstance(value.value(), bytes):
+                temp = list(value.value())
+                for i in range(len(temp)):
+                    _text += chr(temp[i])
+            else:
+                _text += str(value.value())
 
+            myDB.insert_record(key.path(), value.value_type_str(), value.name(), _text, key.timestamp())
 
 if __name__ == '__main__':
     r = Registry(sys.argv[1])
-
-    con = sqlite3.connect('./test.db')
-    cur = con.cursor()
-    #cur.execute("CREATE TABLE Hive(Key text);")
-    print_all(r.root())
+    myDB = DBManager.DBManager('test.db')
+    myDB.drop_table()
+    myDB.create_table()
+    #myDB.checkTableList()
+    write_db(r.root(), myDB)
+    myDB.close_db()
+    #print_all(r.root())
     #rec2(r.root())
-
-    con.commit()
-    con.close()
