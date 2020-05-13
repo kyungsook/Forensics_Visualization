@@ -79,7 +79,6 @@ class RegistryKeyNotFoundException(RegistryParse.RegistryStructureDoesNotExist):
 
     def __init__(self, value):
         """
-
         Arguments:
         - `value`:
         """
@@ -95,7 +94,6 @@ class RegistryValueNotFoundException(RegistryParse.RegistryStructureDoesNotExist
 
     def __init__(self, value):
         """
-
         Arguments:
         - `value`:
         """
@@ -108,7 +106,7 @@ class RegistryValueNotFoundException(RegistryParse.RegistryStructureDoesNotExist
 class RegistryValue(object):
     """
     This is a high level structure for working with the Windows Registry.
-    It represents the 3-tuple of (name, type, value) associated with 
+    It represents the 3-tuple of (name, type, value) associated with
       a registry value.
     """
 
@@ -128,7 +126,6 @@ class RegistryValue(object):
     def value_type(self):
         """
         Get the type of the value as an integer constant.
-
         One of:
          - RegSZ = 0x0001
          - RegExpandSZ = 0x0002
@@ -179,7 +176,6 @@ class RegistryValue(object):
     def value_type_str(self):
         """
         Get the type of the value as a string.
-
         One of:
          - RegSZ
          - RegExpandSZ
@@ -251,7 +247,6 @@ class RegistryKey(object):
 
     def __init__(self, nkrecord):
         """
-
         Arguments:
         - `NKRecord`:
         """
@@ -273,7 +268,6 @@ class RegistryKey(object):
     def name(self):
         """
         Get the name of the key as a string.
-
         For example, "Windows" if the key path were
         /{hive name}/SOFTWARE/Microsoft/Windows
         See RegistryKey.path() to get the complete key name.
@@ -316,7 +310,7 @@ class RegistryKey(object):
     def subkey(self, name):
         """
         Return the subkey with a given name as a RegistryKey.
-        Raises RegistryKeyNotFoundException if the subkey with 
+        Raises RegistryKeyNotFoundException if the subkey with
           the given name does not exist.
         """
         if self._nkrecord.subkey_number() == 0:
@@ -470,10 +464,13 @@ def rec(key, depth=0):
 
 
 def write_db(key, myDB, depth=0):
+    is_reg = "Not Registry"
+
     for subkey in key.subkeys():
         write_db(subkey, myDB, depth + 1)
         for value in [v for v in key.values() if
                       v.value_type() == RegistryParse.RegSZ or v.value_type() == RegistryParse.RegExpandSZ]:
+            is_reg = "Registry File"
             _text = ""
             if isinstance(value.value(), bytes):
                 temp = list(value.value())
@@ -482,7 +479,7 @@ def write_db(key, myDB, depth=0):
             else:
                 _text += str(value.value())
 
-            myDB.insert_record(key.path(), value.value_type_str(), value.name(), _text)
+            myDB.insert_record(is_reg, key.path(), value.value_type_str(), value.name(), _text, key.timestamp())
 
 
 if __name__ == '__main__':

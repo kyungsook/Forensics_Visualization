@@ -10,18 +10,17 @@ class DBManager:
         self.create_table()
 
     def create_table(self):
-        # self.cur.execute("CREATE TABLE IF NOT EXISTS Hive(Key text, ValueType text, ValueName text, Value text, Timestamp text);")
-        self.cur.execute("CREATE TABLE IF NOT EXISTS Hive(Key text, ValueType text, ValueName text, Value text);")
-
+        self.cur.execute("CREATE TABLE IF NOT EXISTS Hive"
+                         "(Type text, Key text, ValueType text, ValueName text, Value text, Timestamp text);")
 
     def drop_table(self):
         self.cur = self.con.cursor()
         self.cur.execute("DROP TABLE Hive;")
         print("drop table")
 
-    def insert_record(self, key, valType, valName, val):  # DB에 데이터 넣기
+    def insert_record(self, type, key, valType, valName, val, timeStamp):  # DB에 데이터 넣기
         self.cur = self.con.cursor()
-        self.cur.execute("INSERT INTO Hive Values (?, ?, ?, ?);", [key, valType, valName, val])
+        self.cur.execute("INSERT INTO Hive Values (?, ?, ?, ?, ?, ?);", [type, key, valType, valName, val, timeStamp])
 
     def close_db(self):
         self.con.commit()
@@ -33,5 +32,5 @@ class DBManager:
 if __name__ == '__main__':
     print("DBManager")
     db = DBManager('./test.db')
-    # db.drop_table()
+    db.drop_table()
     db.close_db()
