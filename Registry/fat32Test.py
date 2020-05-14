@@ -105,7 +105,8 @@ class FAT32:
         cluster = highcluster << 16 | lowcluster
         size = struct.unpack_from("<I", data, 28)[0]
 
-        real_ext_byte = self.get_real_ext(cluster)
+        db_ext_byte = self.get_real_ext(cluster)
+        real_ext_byte = db_ext_byte[0:8]
         real_ext_high = real_ext_byte[0:4]
         real_ext=''
 
@@ -124,6 +125,12 @@ class FAT32:
         elif real_ext_byte == b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1':
             real_ext = 'HWP'
 
+        elif db_ext_byte == b'\x53\x51\x4C\x69\x74\x65\x20\x66\x6F\x72\x6D\x61\x74\x20\x33\x00':
+            real_ext = 'SQLite'
+
+        elif real_ext_high == b'regf':
+            real_ext = 'registry hive file'
+
         entry = {'sname': name, 'attr': attr, 'cluster': cluster, 'size': size, 'ext': ext, 'real_ext': real_ext,
                  'create_time': create_time, 'create_date': create_date, 'lad': lad, 'write_time': write_time, 'write_date': write_date }
 
@@ -137,7 +144,7 @@ class FAT32:
         return entry
 
     def get_real_ext(self, cluster):
-        real_ext = self.read_byte(((cluster-2)*2+self.first_data_sector)*512, 8)
+        real_ext = self.read_byte(((cluster-2)* self.spc + self.first_data_sector)*512, 8)
         return real_ext
 
     def get_content(self, cluster):
