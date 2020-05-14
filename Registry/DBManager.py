@@ -23,6 +23,19 @@ class DBManager:
 
         return False
 
+    def create_table(self):
+        self.cur.execute("CREATE TABLE IF NOT EXISTS Hive(Key text, ValueType text, ValueName text, Value text, Timestamp text);")
+
+    def drop_table(self):
+        #self.cur = self.con.cursor()
+        self.cur.execute("DROP TABLE Hive;")
+        print("drop table")
+
+    def insert_record(self, key, valType, valName, val, timestamp):
+        self.cur = self.con.cursor()
+        self.cur.execute("INSERT INTO Hive Values (?, ?, ?, ?, ?);", [key, valType, valName, val, timestamp])
+
+
     def connect_db(self, dbName, tableName):   #DB에 연결
         self.con = sqlite3.connect(dbName)
 
@@ -32,15 +45,28 @@ class DBManager:
 
     def insert_db(self, val): #DB에 데이터 넣기
         self.cur.execute("INSERT INTO Hive Values (?);", [val])
+        self.con.commit()
+
 
     def delete_db(self, val):
         print("삭제~~~~~")
+
+    def close_db(self):
+        self.con.commit()
+        self.con.close()
+        print("disconnected")
+
+    def just_test(self):
+        print("this is test method")
 
 if __name__ == '__main__':
     print("DBManager")
     db = DBManager(sys.argv[1])
 
     db.checkTableList()
+    db.disconnect_db()
+
+
 
 
 

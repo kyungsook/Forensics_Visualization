@@ -9,7 +9,6 @@ import calendar
 import argparse
 import Registry
 
-
 def guess_hive_name(path):
     for i in range(len(path)):
         rpath = path[-(i + 1):].lower()

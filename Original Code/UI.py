@@ -6,6 +6,7 @@ from PyQt5.QtCore import *
 from operator import itemgetter
 
 import fat32Test
+import binascii
 
 class Mode(enum.Enum):
     READ = 0  # Purely read the hex.
