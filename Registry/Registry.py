@@ -41,6 +41,7 @@ RegFileTime = 0x0010
 
 DEVPROP_MASK_TYPE = 0x00000FFF
 
+
 class HiveType(Enum):
     UNKNOWN = ""
     NTUSER = "ntuser.dat"
@@ -59,6 +60,7 @@ class HiveType(Enum):
 class RegistryKeyHasNoParentException(RegistryParse.RegistryStructureDoesNotExist):
     """
     """
+
     def __init__(self, value):
         """
         Constructor.
@@ -70,12 +72,13 @@ class RegistryKeyHasNoParentException(RegistryParse.RegistryStructureDoesNotExis
     def __str__(self):
         return "Registry key has no parent key: %s" % (self._value)
 
+
 class RegistryKeyNotFoundException(RegistryParse.RegistryStructureDoesNotExist):
     """
     """
+
     def __init__(self, value):
         """
-
         Arguments:
         - `value`:
         """
@@ -84,12 +87,13 @@ class RegistryKeyNotFoundException(RegistryParse.RegistryStructureDoesNotExist):
     def __str__(self):
         return "Registry key not found: %s" % (self._value)
 
+
 class RegistryValueNotFoundException(RegistryParse.RegistryStructureDoesNotExist):
     """
     """
+
     def __init__(self, value):
         """
-
         Arguments:
         - `value`:
         """
@@ -98,12 +102,14 @@ class RegistryValueNotFoundException(RegistryParse.RegistryStructureDoesNotExist
     def __str__(self):
         return "Registry value not found: %s" % (self._value)
 
+
 class RegistryValue(object):
     """
     This is a high level structure for working with the Windows Registry.
-    It represents the 3-tuple of (name, type, value) associated with 
+    It represents the 3-tuple of (name, type, value) associated with
       a registry value.
     """
+
     def __init__(self, vkrecord):
         self._vkrecord = vkrecord
 
@@ -115,12 +121,11 @@ class RegistryValue(object):
         if self._vkrecord.has_name():
             return self._vkrecord.name()
         else:
-            return  "(default)"
+            return "(default)"
 
     def value_type(self):
         """
         Get the type of the value as an integer constant.
-
         One of:
          - RegSZ = 0x0001
          - RegExpandSZ = 0x0002
@@ -171,7 +176,6 @@ class RegistryValue(object):
     def value_type_str(self):
         """
         Get the type of the value as a string.
-
         One of:
          - RegSZ
          - RegExpandSZ
@@ -240,9 +244,9 @@ class RegistryKey(object):
     A RegistryKey may have a set of values associated with it,
       as well as a last modified timestamp.
     """
+
     def __init__(self, nkrecord):
         """
-
         Arguments:
         - `NKRecord`:
         """
@@ -250,7 +254,7 @@ class RegistryKey(object):
 
     def __str__(self):
         return "Registry Key %s with %d values and %d subkeys" % \
-            (self.path(), len(self.values()), len(self.subkeys()))
+               (self.path(), len(self.values()), len(self.subkeys()))
 
     def __getitem__(self, key):
         return self.value(key)
@@ -264,7 +268,6 @@ class RegistryKey(object):
     def name(self):
         """
         Get the name of the key as a string.
-
         For example, "Windows" if the key path were
         /{hive name}/SOFTWARE/Microsoft/Windows
         See RegistryKey.path() to get the complete key name.
@@ -307,7 +310,7 @@ class RegistryKey(object):
     def subkey(self, name):
         """
         Return the subkey with a given name as a RegistryKey.
-        Raises RegistryKeyNotFoundException if the subkey with 
+        Raises RegistryKeyNotFoundException if the subkey with
           the given name does not exist.
         """
         if self._nkrecord.subkey_number() == 0:
@@ -357,22 +360,23 @@ class RegistryKey(object):
         return self.subkey(immediate).find_key(future)
 
     def values_number(self):
-    	"""
+        """
     	Return the number of values associated with this key
     	"""
-    	return self._nkrecord.values_number()
+        return self._nkrecord.values_number()
 
     def subkeys_number(self):
-    	"""
+        """
     	Return the number of subkeys associated with this key
     	"""
-    	return self._nkrecord.subkey_number()
+        return self._nkrecord.subkey_number()
 
 
 class Registry(object):
     """
     A class for parsing and reading from a Windows Registry file.
     """
+
     def __init__(self, filelikeobject):
         """
         Constructor.
@@ -441,13 +445,16 @@ class Registry(object):
         # level? is this the name of the hive?
         return RegistryKey(self._regf.first_key()).find_key(path)
 
+
 def rec2(key, depth=0):
     print("\t" * depth + key.path())
 
     for subkey in key.subkeys():
         rec2(subkey, depth + 1)
-        for value in [v for v in key.values() if v.value_type() == RegistryParse.RegSZ or v.value_type() == RegistryParse.RegExpandSZ]:
+        for value in [v for v in key.values() if
+                      v.value_type() == RegistryParse.RegSZ or v.value_type() == RegistryParse.RegExpandSZ]:
             print("%s: %s" % (value.name(), value.value()))
+
 
 def rec(key, depth=0):
     print("\t" * depth + key.path())
@@ -456,18 +463,14 @@ def rec(key, depth=0):
         rec(subkey, depth + 1)
 
 
-def print_all(key):
-    if len(key.subkeys()) == 0:
-        print(key.path())
-    else:
-        for k in key.subkeys():
-            print_all(k)
-
 def write_db(key, myDB, depth=0):
+    is_reg = "Not Registry"
+
     for subkey in key.subkeys():
         write_db(subkey, myDB, depth + 1)
         for value in [v for v in key.values() if
                       v.value_type() == RegistryParse.RegSZ or v.value_type() == RegistryParse.RegExpandSZ]:
+            is_reg = "Registry File"
             _text = ""
             if isinstance(value.value(), bytes):
                 temp = list(value.value())
@@ -476,15 +479,15 @@ def write_db(key, myDB, depth=0):
             else:
                 _text += str(value.value())
 
-            myDB.insert_record(key.path(), value.value_type_str(), value.name(), _text, key.timestamp())
+            myDB.insert_record(is_reg, key.path(), value.value_type_str(), value.name(), _text, key.timestamp())
+
 
 if __name__ == '__main__':
     r = Registry(sys.argv[1])
-    myDB = DBManager.DBManager('test.db')
-    myDB.drop_table()
-    myDB.create_table()
-    #myDB.checkTableList()
+
+    myDB = DBManager.DBManager('./test.db')
     write_db(r.root(), myDB)
     myDB.close_db()
-    #print_all(r.root())
-    #rec2(r.root())
+
+# TODO:
+# timestamp
