@@ -211,7 +211,7 @@ if __name__ == '__main__':
 
     #print(fs.root_cluster)
     fs.get_files(fs.root_cluster)
-    print(fs.file_list)
+    print(fs.dir_list)
 
     """fs.renew_list()
     fs.get_files(7)
