@@ -24,7 +24,7 @@ class DBManager:
         self.cur.execute("DROP TABLE %s;" %(tableName))
         print("drop table")
 
-    def insert_record(self, tableName, filename = 0, type = 0, key = 0, valType = 0, valName = 0, val = 0, timeStamp = 0, name = 0, ext = 0, sig = 0, size = 0, create = 0, write = 0, access = 0):  # DB에 데이터 넣기
+    def insert_record(self, tableName, filename = 0, type = 0, key = 0, valType = 0, valName = 0, val = 0, timeStamp = "", name = 0, ext = 0, sig = 0, size = 0, create = 0, write = 0, access = 0):  # DB에 데이터 넣기
         self.cur = self.con.cursor()
         if tableName == 'Hive':
             self.cur.execute("INSERT INTO Hive Values (?, ?, ?, ?, ?, ?, ?);", [filename, type, key, valType, valName, val, timeStamp])
@@ -35,19 +35,15 @@ class DBManager:
         self.cur = self.con.cursor()
         result = ""
         if tableName == 'Hive':
-            print("hive")
-            self.cur.execute("SELECT * FROM Hive WHERE Timestamp BETWEEN '2020-03-01' AND '2020-05-01'")
+            print("select hive")
+            self.cur.execute("SELECT * FROM Hive WHERE Timestamp BETWEEN '%s' AND '%s'" % (date_from, date_to))
 
         elif tableName == 'GeneralFile':
-            print("generalFile")
-            # self.cur.execute("SELECT COUNT(*) FROM GeneralFile WHERE WriteTime_ BETWEEN %s AND %s;" %(date_from, date_to))
-            self.cur.execute("SELECT * FROM GeneralFile WHERE WriteTime BETWEEN '2020/03/01' AND '2020/05/01'")
-
-            for i in result:
-                print("%s" % i[5])
+            print("select generalFile")
+            self.cur.execute("SELECT * FROM GeneralFile WHERE WriteTime BETWEEN '%s' AND '%s';" % (date_from, date_to))
 
         elif tableName == 'urls':
-            print("urls")
+            print("select urls")
 
         self.con.commit()
         result = self.cur.fetchall()
@@ -56,27 +52,32 @@ class DBManager:
 
     def order_by_date(self, tableName, date_from, date_to):
         self.cur = self.con.cursor()
-        result = ""
 
         if tableName == 'Hive':
-            print("hive")
+            print("hive - order by date")
             self.cur.execute("SELECT substr(Timestamp, 0, 11) AS WriteDate, COUNT(*) AS Num "
-                             "FROM Hive WHERE Timestamp BETWEEN '2020-03-01' AND '2020-05-01' "
-                             "GROUP BY substr(Timestamp, 0, 11) ORDER BY Timestamp")
+                             "FROM Hive WHERE Timestamp BETWEEN '%s' AND '%s' "
+                             "GROUP BY substr(Timestamp, 0, 11) ORDER BY Timestamp" % (date_from, date_to))
 
         elif tableName == 'GeneralFile':
-            print("general")
+            print("general - order by date")
+            date_from = date_from.replace('-','/')
+            date_to = date_to.replace('-','/')
+            # print(date_from, date_to)
             self.cur.execute("SELECT substr(WriteTime, 0, 11) AS WriteDate, COUNT(*) AS Num "
-                             "FROM GeneralFile Where WriteDate BETWEEN '2020/03/01' AND '2020/05/01' "
-                             "GROUP BY substr(WriteTime, 0, 11) ORDER BY WriteDate")
+                             "FROM GeneralFile Where WriteDate BETWEEN '%s' AND '%s' "
+                             "GROUP BY substr(WriteTime, 0, 11) ORDER BY WriteDate" % (date_from, date_to))
 
         elif tableName == 'urls':
-            print("urls")
-            self.cur.execute("SELECT date(datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime')) AS lvt, COUNT(*) " \
-                         "FROM urls WHERE lvt BETWEEN '2020-03-01' AND '2020-05-01' GROUP BY lvt;")
+            print("urls - order by date")
+            self.cur.execute("SELECT date(datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime')) AS lvt,"
+                             " COUNT(*) FROM urls WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt;" % (date_from, date_to))
 
         self.con.commit()
-        result = self.cur.fetchall()
+        temp = self.cur.fetchall()
+        result = {}
+        for i in temp:
+            result[i[0].replace('/','-')] = i[1]
         print(result)
         return result
 
@@ -92,9 +93,12 @@ if __name__ == '__main__':
     # db = DBManager('./test.db', 'GeneralFile')
     db = DBManager('./test.db')
     str_from = '2020/03/01'
-    str_to = '2020/05/01'
-    # db.select_record(datetime.datetime.strptime(str_from, '%Y/%m/%d'), datetime.datetime.strptime(str_to, '%Y/%m/%d'))
+    str_to = '2020/03/31'
+    # print(datetime.datetime.strptime(str_from, '%Y/%m/%d'))
+    # print(type(datetime.datetime.strptime(str_from, '%Y/%m/%d')))
+    db.order_by_date('GeneralFile', str_from, str_to)
     # db.select_record(str_from, str_to)
     # db.drop_table('GeneralFile')
-    db.order_by_date('Hive', str_from, str_to)
+    # db.order_by_date('Hive', str_from, str_to)
+    # db.drop_table('Hive')
     db.close_db()
