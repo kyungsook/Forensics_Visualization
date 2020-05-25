@@ -1,10 +1,8 @@
-<<<<<<< HEAD
 import pygal
 from collections import Counter
 import plotly
 import plotly.graph_objs as go
 from plotly import subplots
-from matplotlib import pyplot as plt
 import pandas as pd
 import cufflinks as cf
 
