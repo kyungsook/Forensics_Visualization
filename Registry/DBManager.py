@@ -36,15 +36,16 @@ class DBManager:
         sql_select = ""
         if tableName == 'Hive':
             #print("hive")
-            sql_select = "SELECT substr(Timestamp, 0, 11) AS WriteDate, COUNT(*) AS Num " \
-                         "FROM Hive WHERE Timestamp BETWEEN '%s' AND '%s' " \
-                         "GROUP BY substr(Timestamp, 0, 11) ORDER BY Timestamp;" %(date_from, date_to)
+            sql_select = "SELECT ValType, substr(Timestamp, 0, 11) AS WriteDate, COUNT(*) AS Num " \
+                         "FROM Hive WHERE Timestamp BETWEEN '%s' AND '%s' GROUP BY ValType, substr(Timestamp, 0, 11) " \
+                         "ORDER BY Timestamp" % (date_from, date_to)
 
 
         elif tableName == 'GeneralFile':
             #print("generalFile")
-            sql_select = "SELECT substr(WriteTime, 0, 11) AS WriteDate, COUNT(*) FROM GeneralFile " \
-                         "WHERE WriteDate BETWEEN '%s' AND '%s' GROUP BY WriteDate;" %(date_from, date_to)
+            sql_select = "SELECT FileSig, substr(WriteTime, 0, 11) AS WriteDate, COUNT(*) AS Num " \
+                         "FROM GeneralFile Where WriteDate BETWEEN '%s' AND '%s' GROUP BY FileSig, substr(WriteTime, 0, 11) " \
+                         "ORDER BY WriteDate" % (date_from, date_to)
 
         elif tableName == 'urls':
             #print("urls")
