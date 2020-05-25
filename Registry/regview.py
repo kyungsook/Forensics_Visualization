@@ -22,14 +22,21 @@ from __future__ import unicode_literals
 import sys
 import os
 import wx
-import Registry
+import webbrowser
+import wx.html
 
-ID_FILE_OPEN = wx.NewId()
-ID_FILE_SESSION_SAVE = wx.NewId()
-ID_FILE_SESSION_OPEN = wx.NewId()
-ID_TAB_CLOSE = wx.NewId()
-ID_FILE_EXIT = wx.NewId()
-ID_HELP_ABOUT = wx.NewId()
+import Registry
+import drawGraph
+
+
+
+ID_FILE_OPEN = wx.NewIdRef()
+ID_FILE_SESSION_SAVE = wx.NewIdRef()
+ID_FILE_SESSION_OPEN = wx.NewIdRef()
+ID_TAB_CLOSE = wx.NewIdRef()
+ID_FILE_EXIT = wx.NewIdRef()
+ID_HELP_ABOUT = wx.NewIdRef()
+ID_DRAW_GRAPH = wx.NewIdRef()
 
 
 def nop(*args, **kwargs):
@@ -311,6 +318,87 @@ class RegistryFileView(wx.Panel):
         self._tree.select_path(path)
 
 
+class MyHtmlFrame(wx.Frame):
+    def __init__(self, parent, title):
+        wx.Frame.__init__(
+            self,
+            parent,
+            -1,
+            title,
+            size=(600, 400)
+        )
+
+        # Use current window as container of the Html Frame
+        html = wx.html.HtmlWindow(self)
+
+        # if "gtk2" in wx.PlatformInfo:
+        #     html.SetStandardFonts()
+
+        # Alternatively render raw HTML with the SetPage method
+        # html.SetPage("<h4>Hello World</h4>")
+        # Render a local HTML file
+        html.LoadPage("UserRecord.html")
+
+class FilterFrame(wx.Frame):
+
+    def __init__(self, title, parent=None):
+        wx.Frame.__init__(self, parent=parent, title=title, size =(400, 300),
+                          style=wx.DEFAULT_FRAME_STYLE^wx.MAXIMIZE_BOX^wx.RESIZE_BORDER)
+        panel = wx.Panel(self, -1, size =(400, 300))
+
+        # wx.StaticText(panel, -1, "View", pos=(20, 10))
+        # wx.RadioBox(panel, 1, "Registry File", (30, 35), (160, -1))
+        # wx.RadioBox(panel, 1, "General File", (30, 55), (160, -1))
+        # wx.RadioBox(panel, 1, "Internet History", (30, 75), (160, -1))
+
+        self.viewList = ['Registry File Access History', 'General File Access History', 'Internet URL History']
+        self.rbox = wx.RadioBox(panel, label='View', pos=(20, 20), choices=self.viewList, majorDimension=1)
+        self.rbox.Bind(wx.EVT_RADIOBOX, self.onRadioBox)
+
+        # wx.StaticBox(panel, -1, label='Period', pos=(20, 130))
+        wx.StaticText(panel, -1, "Period", pos=(25, 130))
+        self.text_from = wx.TextCtrl(panel, -1, pos=(20, 155))
+        self.text_from.SetHint("2020-03-01")
+        wx.StaticText(panel, -1, "~", pos=(140, 160))
+        self.text_to = wx.TextCtrl(panel, -1, pos=(160, 155))
+        self.text_to.SetHint("2020-05-31")
+
+        button = wx.Button(panel, label="Draw", pos=(170, 200), size=(50, 30))
+        self.Bind(wx.EVT_BUTTON, self.open_html_file, button)
+        self.Show()
+
+    def open_html_file(self, event):
+        tableName = ""
+        date_from = self.text_from.GetValue()
+        date_to = self.text_to.GetValue()
+
+        myGraph = drawGraph.Graph(date_from, date_to)
+
+        if self.rbox.GetStringSelection() == self.viewList[0]:
+            tableName = "Hive"
+        elif self.rbox.GetStringSelection() == self.viewList[1]:
+            tableName = "GeneralFile"
+        elif self.rbox.GetStringSelection() == self.viewList[2]:
+            tableName = "urls"
+
+        myGraph.draw_graph_html(tableName)
+        print("i want graph about %s table" % tableName)
+
+        filepath = "UserRecord.html"
+        webbrowser.open_new_tab(filepath)
+        frm = MyHtmlFrame(None, filepath)
+        frm.Show()
+
+
+    def onRadioBox(self, event):
+        if self.rbox.GetStringSelection() == self.viewList[0]:
+            print("hive")
+        elif self.rbox.GetStringSelection() == self.viewList[1]:
+            print("general file")
+        elif self.rbox.GetStringSelection() == self.viewList[2]:
+            print("urls")
+
+
 class RegistryFileViewer(wx.Frame):
     """
     The main RegView GUI application.
@@ -332,6 +420,12 @@ class RegistryFileViewer(wx.Frame):
         _exit = file_menu.Append(ID_FILE_EXIT, 'E&xit Program')
         self.Bind(wx.EVT_MENU, self.menu_file_exit, _exit)
         menu_bar.Append(file_menu, "&File")
+
+        vis_menu = wx.Menu()
+        _graph = vis_menu.Append(ID_DRAW_GRAPH, '&Visualization')
+        self.Bind(wx.EVT_MENU, self.menu_draw_graph, _graph)
+        self.frame_number = 1
+        menu_bar.Append(vis_menu, "&Visualization")
 
         tab_menu = wx.Menu()
         _close = tab_menu.Append(ID_TAB_CLOSE, '&Close')
@@ -423,6 +517,15 @@ class RegistryFileViewer(wx.Frame):
 
     def menu_help_about(self, evt):
         wx.MessageBox("regview.py, a part of `python-registry`\n\nhttp://www.williballenthin.com/registry/", "info")
+
+    def menu_draw_graph(self, evt):
+        print("창 띄우기")
+        title = 'Filter'
+        frame = FilterFrame(title=title)
+
+
+
+
 
 
 if __name__ == '__main__':
