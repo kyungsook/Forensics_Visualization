@@ -373,7 +373,7 @@ class Registry(object):
     """
     A class for parsing and reading from a Windows Registry file.
     """
-    def __init__(self, filelikeobject):
+    def __init__(self, f):
         """
         Constructor.
         Arguments:
@@ -382,11 +382,17 @@ class Registry(object):
               and the corresponding file is opened.
         """
         try:
-            self._buf = filelikeobject.read()
+            self._buf = f.read()
         except AttributeError:
-            with open(filelikeobject, "rb") as f:
+            with open(f, "rb") as f:
                 self._buf = f.read()
         self._regf = RegistryParse.REGFBlock(self._buf, 0, False)
+
+        """f.seek(offset)
+        self._buf = f.fd.read(size)
+        self._regf = RegistryParse.REGFBlock(self._buf, 0, False)"""
+
+
 
     def hive_name(self):
         """Returns the internal file name"""
@@ -464,10 +470,14 @@ def print_all(key):
             print_all(k)
 
 def write_db(key, myDB, depth=0):
+    is_reg = "Not Registry"
+
     for subkey in key.subkeys():
         write_db(subkey, myDB, depth + 1)
-        for value in [v for v in key.values() if
-                      v.value_type() == RegistryParse.RegSZ or v.value_type() == RegistryParse.RegExpandSZ]:
+        # for value in [v for v in key.values() if
+        #               v.value_type() == RegistryParse.RegSZ or v.value_type() == RegistryParse.RegExpandSZ]:
+        for value in [v for v in key.values()]:
+            is_reg = "Registry File"
             _text = ""
             if isinstance(value.value(), bytes):
                 temp = list(value.value())
@@ -476,13 +486,15 @@ def write_db(key, myDB, depth=0):
             else:
                 _text += str(value.value())
 
-            myDB.insert_record(key.path(), value.value_type_str(), value.name(), _text, key.timestamp())
+            # print(key.timestamp())
+            myDB.insert_record('Hive', type=is_reg, key=key.path(), valType=value.value_type_str(), valName=value.name(), val=_text, timeStamp=key.timestamp())
+
 
 if __name__ == '__main__':
     r = Registry(sys.argv[1])
     myDB = DBManager.DBManager('test.db')
-    myDB.drop_table()
-    myDB.create_table()
+    myDB.drop_table('Hive')
+    myDB.create_table('Hive')
     #myDB.checkTableList()
     write_db(r.root(), myDB)
     myDB.close_db()

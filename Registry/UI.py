@@ -6,6 +6,8 @@ from PyQt5.QtCore import *
 from operator import itemgetter
 
 import fat32Test
+import Registry
+import DBManager
 
 class Mode(enum.Enum):
     READ = 0  # Purely read the hex.
@@ -186,15 +188,12 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
             byte = text[chars - 1]
 
             # main text 가 중앙에 있는것
-            mainText += format(byte, '02X')
+            mainText += (format(byte, '02X')+' ')
 
             if chars % self.rowLength == 0 and chars != 0:
                 mainText += '\n'
 
             elif chars % self.rowSpacing == 0:
-                mainText += self.space * 2
-
-            else:
                 mainText += self.space
 
         return mainText
@@ -392,6 +391,8 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
                     self.read_FAT_DATA.renew_list()
                     self.read_FAT_DATA.get_files(self.read_cluster)
                     self.generateView(self.read_FAT_DATA.get_content(self.read_cluster), self.read_cluster)
+                    print(self.read_FAT_DATA.reg_list)
+
 
     def file_button_on_clicked(self, name):
         for i in self.read_FAT_DATA.file_list:
@@ -420,6 +421,7 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
                     'real_ext'] + '\nSize: ' + str(i['size']) + '\ncreate: ' + create_string + '\nwrite: ' + write_string
                 self.infoArea.setText(infoText)
                 self.file_generateView(self.read_FAT_DATA.get_content(i['cluster']), i['cluster'])
+                print(i['size'])
 
 
     # highlightMain ... Bi-directional highlighting from main.

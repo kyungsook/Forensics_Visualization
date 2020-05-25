@@ -6,6 +6,7 @@ class FAT32:
     END_CLUSTER = 0x0fffffff
     dir_list=[]
     file_list=[]
+    reg_list=[]
 
     def __init__(self, filename):
         self.filename = filename
@@ -15,8 +16,8 @@ class FAT32:
     def read_vbr(self): # vbr 1섹터 읽기
         self.fd.seek(0)
         vbr = self.fd.read(512)
-        self.bps = struct.unpack_from("<H", vbr, 11)[0]
-        self.spc = struct.unpack_from("<B", vbr, 13)[0]
+        self.bps = struct.unpack_from("<H", vbr, 11)[0] #byte per sector
+        self.spc = struct.unpack_from("<B", vbr, 13)[0] #sector per cluster
         self.reserved_sectors = struct.unpack_from("<H", vbr, 14)[0]
         self.number_of_fats = struct.unpack_from("<B", vbr, 16)[0]
         self.sectors = struct.unpack_from("<I", vbr, 32)[0]
@@ -144,10 +145,10 @@ class FAT32:
         return entry
 
     def get_real_ext(self, cluster):
-        real_ext = self.read_byte(((cluster-2)* self.spc + self.first_data_sector)*512, 8)
+        real_ext = self.read_byte(((cluster-2)* self.spc + self.first_data_sector)*512, 16)
         return real_ext
 
-    def get_content(self, cluster):
+    def get_content(self, cluster): #연결된 fat를 찾아서 data를 다 읽어온다
         fats = self.get_fats_by_start_cluster(cluster)
         return self.read_clusters(fats)
 
@@ -201,6 +202,10 @@ class FAT32:
        if entry['attr'] == 8 or entry['attr'] == 16 or entry['attr'] == 22:
            entry['ext']='Directory'
            self.dir_list.append(entry)
+
+       elif entry['real_ext'] == 'registry hive file':
+           self.file_list.append(entry)
+           self.reg_list.append(entry)
 
        else:
             self.file_list.append(entry)
