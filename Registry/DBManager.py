@@ -43,8 +43,10 @@ class DBManager:
 
         elif tableName == 'GeneralFile':
             #print("generalFile")
+            date_from = date_from.replace('-', '/')
+            date_to = date_to.replace('-', '/')
             sql_select = "SELECT FileSig, substr(WriteTime, 0, 11) AS WriteDate, COUNT(*) AS Num " \
-                         "FROM GeneralFile Where WriteDate BETWEEN '%s' AND '%s' GROUP BY FileSig, substr(WriteTime, 0, 11) " \
+                         "FROM GeneralFile Where WriteDate BETWEEN '%s' AND '%s' GROUP BY FileSig, WriteDate " \
                          "ORDER BY WriteDate" % (date_from, date_to)
 
         elif tableName == 'urls':
@@ -65,6 +67,8 @@ class DBManager:
             for i in total:
                 result[i[0]] = i[1]
 
+
+        print(result)
         return result
 
     def close_db(self):
@@ -80,6 +84,6 @@ if __name__ == '__main__':
     db = DBManager('./test.db')
     str_from = '2020-03-01'
     str_to = '2020-05-01'
-    db.select_record('Hive', str_from, str_to)
+    db.select_record('GeneralFile', str_from, str_to)
     # db.drop_table('GeneralFile')
     db.close_db()

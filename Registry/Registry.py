@@ -373,7 +373,7 @@ class Registry(object):
     """
     A class for parsing and reading from a Windows Registry file.
     """
-    def __init__(self, f):
+    def __init__(self, f, offset, size):
         """
         Constructor.
         Arguments:
@@ -381,16 +381,17 @@ class Registry(object):
               If a Python string is passed, it is interpreted as a filename,
               and the corresponding file is opened.
         """
-        try:
+        """try:
             self._buf = f.read()
         except AttributeError:
             with open(f, "rb") as f:
                 self._buf = f.read()
-        self._regf = RegistryParse.REGFBlock(self._buf, 0, False)
-
-        """f.seek(offset)
-        self._buf = f.fd.read(size)
         self._regf = RegistryParse.REGFBlock(self._buf, 0, False)"""
+
+        #print(type(offset))
+        f.seek(offset)
+        self._buf = f.fd.read(size)
+        self._regf = RegistryParse.REGFBlock(self._buf, 0, False)
 
 
 
@@ -452,8 +453,9 @@ def rec2(key, depth=0):
 
     for subkey in key.subkeys():
         rec2(subkey, depth + 1)
-        for value in [v for v in key.values() if v.value_type() == RegistryParse.RegSZ or v.value_type() == RegistryParse.RegExpandSZ]:
-            print("%s: %s" % (value.name(), value.value()))
+        #for value in [v for v in key.values() if v.value_type() == RegistryParse.RegSZ or v.value_type() == RegistryParse.RegExpandSZ]:
+          #  print("%s: %s" % (value.name(), value.value()))
+
 
 def rec(key, depth=0):
     print("\t" * depth + key.path())
@@ -491,12 +493,12 @@ def write_db(key, myDB, depth=0):
 
 
 if __name__ == '__main__':
-    r = Registry(sys.argv[1])
-    myDB = DBManager.DBManager('test.db')
-    myDB.drop_table('Hive')
-    myDB.create_table('Hive')
+    r = Registry('RegistryImage', 60778, 8192)
+    #myDB = DBManager.DBManager('test.db')
+    #myDB.drop_table('Hive')
+    #myDB.create_table('Hive')
     #myDB.checkTableList()
-    write_db(r.root(), myDB)
-    myDB.close_db()
+    #write_db(r.root(), myDB)
+    #myDB.close_db()
     #print_all(r.root())
-    #rec2(r.root())
+    rec2(r.root())
