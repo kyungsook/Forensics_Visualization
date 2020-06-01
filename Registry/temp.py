@@ -172,7 +172,29 @@ class FAT32:
 
         lfn = ""
 
-        a = Dir()
+        for i in range(0, len(data), 32):
+            entry_data = data[i:i + 32]  # 한 entry 씩 땡기네
+            c = struct.unpack("<QQQQ", entry_data)
+            if c[0] == 0 and c[1] == 0 and c[2] == 0 and c[3] == 0:
+                break
+            attr = entry_data[11]
+            is_LFN = attr & 0x0F == 0x0F  # 같으면 true, 다르면 false
+
+            if not is_LFN:  # is_LFN이 false인 경우
+                entry = self.parse_dir_entry(entry_data, lfn.strip())
+                lfn = ""
+                self.define_dir(entry)
+
+            else:
+                entry = self.parse_dir_entry_lfn(entry_data, lfn)
+                lfn = entry['name']
+
+    def tree_structure(self, cluster, parent):
+        # To get overall directory tree structure
+        fats = self.get_fats_by_start_cluster(cluster)
+        data = self.read_clusters(fats)
+
+        lfn = ""
 
         for i in range(0, len(data), 32):
             entry_data = data[i:i + 32]  # 한 entry 씩 땡기네
@@ -185,14 +207,17 @@ class FAT32:
             if not is_LFN:  # is_LFN이 false인 경우
                 entry = self.parse_dir_entry(entry_data, lfn.strip())
                 lfn = ""
-                a.get_entry(entry)
-                a.get_dir_list()
+
+                if entry['cluster'] == cluster-2:
+                    parent.get_current(entry)
+
+                else:
+                    temp_sub = Dir(entry)
+                    parent.sub_dir(temp_sub)
 
             else:
                 entry = self.parse_dir_entry_lfn(entry_data, lfn)
                 lfn = entry['name']
-
-        print(a.sub_dir_list)
 
 
     def get_fats_by_start_cluster(self, cluster, fat=1):
@@ -238,40 +263,38 @@ class Dir:
     sub_dir_list = []
     reg_list = []
 
-    def __init__(self):
-        print('initialize')
+    def __init__(self, entry = None):
+        self.current_dir = entry
 
-    def get_entry(self, entry):
-        self._entry = entry
+    def get_current(self, entry):
+        self.current_dir = entry
 
-    def get_dir_list(self):
-        if self._entry['real_ext'] == 'Directory':
+    def get_parent(self, entry):
+        self.parent_dir = entry
+
+    def get_dir_list(self, entry):
+        if entry['real_ext'] == 'Directory':
             self.sub_dir_list.append(self._entry)
 
-        elif self._entry['real_ext'] == 'registry hive file':
+        elif entry['real_ext'] == 'registry hive file':
             self.reg_list.append(self._entry)
             self.file_list.append(self._entry)
 
         else:
             self.file_list.append(self._entry)
 
-    def sub_dir(self):
-        #고치자
-        temp = []
-
-        for k in self.sub_dir_list:
-            a = Dir()
-            a.get_entry(k)
-            temp.append(a)
-
-        return temp
+    def sub_dir(self, object):
+        self.sub_dir_list.append(object)
 
 
 if __name__ == '__main__':
     fs = FAT32(sys.argv[1])
-
+    root = Dir()
     # print(fs.root_cluster)
-    fs.get_files(fs.root_cluster)
+    fs.tree_structure(fs.root_cluster, root)
+    print(root.current_dir)
+    for i in range(len(root.sub_dir_list)):
+        print(root.sub_dir_list[i].current_dir)
     #print(fs.dir_list)
 
     """fs.renew_list()
