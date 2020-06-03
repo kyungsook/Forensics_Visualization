@@ -211,13 +211,28 @@ class FAT32:
                 if entry['cluster'] == cluster-2:
                     parent.get_current(entry)
 
+                elif entry['sname'] == ".":
+                    parent.get_current(entry)
+
+                elif entry['sname'] == "..":
+                    parent.get_before(entry)
+
                 else:
                     temp_sub = Dir(entry)
                     parent.sub_dir(temp_sub)
+                    if entry['ext'] == "Directory":
+                        print(entry)
+                        self.tree_structure(entry['cluster'], temp_sub)
+
+
+                    else :
+                        print(entry)
+                    #여기 작업해야함
 
             else:
                 entry = self.parse_dir_entry_lfn(entry_data, lfn)
                 lfn = entry['name']
+
 
 
     def get_fats_by_start_cluster(self, cluster, fat=1):
@@ -269,6 +284,9 @@ class Dir:
     def get_current(self, entry):
         self.current_dir = entry
 
+    def get_before(self,entry):
+        self.before_dir=entry
+
     def get_parent(self, entry):
         self.parent_dir = entry
 
@@ -292,9 +310,9 @@ if __name__ == '__main__':
     root = Dir()
     # print(fs.root_cluster)
     fs.tree_structure(fs.root_cluster, root)
-    print(root.current_dir)
-    for i in range(len(root.sub_dir_list)):
-        print(root.sub_dir_list[i].current_dir)
+    # print(root.current_dir)
+    # for i in range(len(root.sub_dir_list)):
+    #     print(root.sub_dir_list[i].current_dir)
     #print(fs.dir_list)
 
     """fs.renew_list()
