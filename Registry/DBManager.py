@@ -41,6 +41,12 @@ class DBManager:
         elif tableName == 'GeneralFile':
             print("select generalFile")
             self.cur.execute("SELECT * FROM GeneralFile WHERE WriteTime BETWEEN '%s' AND '%s';" % (date_from, date_to))
+            #print("generalFile")
+            date_from = date_from.replace('-', '/')
+            date_to = date_to.replace('-', '/')
+            sql_select = "SELECT FileSig, substr(WriteTime, 0, 11) AS WriteDate, COUNT(*) AS Num " \
+                         "FROM GeneralFile Where WriteDate BETWEEN '%s' AND '%s' GROUP BY FileSig, WriteDate " \
+                         "ORDER BY WriteDate" % (date_from, date_to)
 
         elif tableName == 'urls':
             print("select urls")
@@ -178,6 +184,11 @@ class DBManager:
 
             return chrome_history, whale_history
 
+
+        print(result)
+        return result
+
+
     def close_db(self):
         self.con.commit()
         self.con.close()
@@ -196,5 +207,7 @@ if __name__ == '__main__':
     # db.select_all(str_from, str_to)
     db.select_history('Hive', str_from, str_to)
 
+    str_to = '2020-05-01'
+    db.select_record('GeneralFile', str_from, str_to)
     # db.drop_table('GeneralFile')
     db.close_db()

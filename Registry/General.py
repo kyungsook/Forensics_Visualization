@@ -15,7 +15,6 @@ class RegistryImage:
         self.filename = filename
         self.imgFile = fat32Test.FAT32(self.filename) #이미지 파일을 rb로 열어서 vbr영역만큼 읽는다
 
-
         self.byteWidth = 2  # How many bits to include in a byte.
         self.space = ' '
         self.rowSpacing = 4  # How many bytes before a double space.
@@ -58,12 +57,13 @@ class RegistryImage:
         offset = self.cluster_to_offset(cluster)
         self.temp = Registry.Registry(self.imgFile, offset, size)
         print(offset)
-        myDB = DBManager.DBManager('test.db')
-        myDB.drop_table()
-        myDB.create_table('Hive')
-        Registry.write_db(self.temp.root(), myDB)
+        Registry.rec2(self.temp.root())
+        #myDB = DBManager.DBManager('test.db')
+        #myDB.drop_table()
+        #myDB.create_table('Hive')
+        #Registry.write_db(self.temp.root(), myDB)
         #Registry.rec2(self.temp.root(), 0)
-        myDB.close_db()
+        #myDB.close_db()
 
     def get_offsetText(self, data, cluster):   #offset 반환
         offsetText = '' #return할 offsetText

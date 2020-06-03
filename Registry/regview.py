@@ -22,6 +22,7 @@ from __future__ import unicode_literals
 import sys
 import os
 import wx
+import wx.html
 import Registry
 import drawGraph
 import webbrowser
@@ -273,8 +274,8 @@ class FilterFrame(wx.Frame):    # visualization filter
         webbrowser.open_new_tab(filepath)
 
         # open html on new window
-        frm = MyHtmlFrame(None, filepath)
-        frm.Show()
+        # frm = MyHtmlFrame(None, filepath)
+        # frm.Show()
 
     def onRadioBox(self, event):
         if self.rbox.GetStringSelection() == self.viewList[0]:
@@ -571,13 +572,11 @@ class RegistryFileViewer(wx.Frame):
         print("창 띄우기")
         title = 'Filter'
         frame = FilterFrame(title = title)
-        self.frame_number +=1
 
     def menu_history_export(self, evt):
         print("웹 히스토리 내보내기")
         title = 'Filter'
         frame = FilterFrame2(title=title)
-        # self.frame_number += 1
 
 
 
