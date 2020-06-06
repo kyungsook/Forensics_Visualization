@@ -1,23 +1,22 @@
 import sys
 import struct
 
-
 class FAT32:
     END_CLUSTER = 0x0fffffff
-    dir_list=[]
-    file_list=[]
-    reg_list=[]
+    dir_list = []
+    file_list = []
+    reg_list = []
 
     def __init__(self, filename):
         self.filename = filename
         self.fd = open(filename, "rb")
         self.read_vbr()
 
-    def read_vbr(self): # vbr 1섹터 읽기
+    def read_vbr(self):  # read vbr area
         self.fd.seek(0)
         vbr = self.fd.read(512)
-        self.bps = struct.unpack_from("<H", vbr, 11)[0] #byte per sector
-        self.spc = struct.unpack_from("<B", vbr, 13)[0] #sector per cluster
+        self.bps = struct.unpack_from("<H", vbr, 11)[0]  # byte per sector
+        self.spc = struct.unpack_from("<B", vbr, 13)[0]  # sector per cluster
         self.reserved_sectors = struct.unpack_from("<H", vbr, 14)[0]
         self.number_of_fats = struct.unpack_from("<B", vbr, 16)[0]
         self.sectors = struct.unpack_from("<I", vbr, 32)[0]
@@ -82,23 +81,29 @@ class FAT32:
 
     def parse_dir_entry(self, data, lfn):
         attr = data[11]
-        is_LFN = attr & 0x0F is 0x0F
+        real_ext = ''
+        ext = ''
 
-        if data[0]==0xE5 :
-            name='!'
-            name=name+self.to_euc_kr(data[2:7]).rstrip()
+        if data[0] == 0xE5:
+            name = '!'
+            name = name + self.to_euc_kr(data[2:7]).rstrip()
 
-        else :
+        else:
             name = self.to_euc_kr(data[0:8]).rstrip()
-
-        ext = self.to_euc_kr(data[8:11]).rstrip()
 
         if len(ext) > 0:
             name = name + "." + ext
 
+        if attr == 8 or attr == 16 or attr == 22:
+            ext = 'Directory'
+            real_ext = 'Directory'
+
+        else:
+            ext = self.to_euc_kr(data[8:11]).rstrip()
+
         create_time = struct.unpack_from("<H", data, 14)[0]
         create_date = struct.unpack_from("<H", data, 16)[0]
-        lad = struct.unpack_from("<H", data, 18)[0] #last access date
+        lad = struct.unpack_from("<H", data, 18)[0]  # last access date
         highcluster = struct.unpack_from("<H", data, 20)[0]
         write_time = struct.unpack_from("<H", data, 22)[0]
         write_date = struct.unpack_from("<H", data, 24)[0]
@@ -109,7 +114,6 @@ class FAT32:
         db_ext_byte = self.get_real_ext(cluster)
         real_ext_byte = db_ext_byte[0:8]
         real_ext_high = real_ext_byte[0:4]
-        real_ext=''
 
         if real_ext_high == b'PK\x03\x04':
             real_ext = 'ZIP/PPTX/XLSX/DOCX'
@@ -133,44 +137,99 @@ class FAT32:
             real_ext = 'registry hive file'
 
         entry = {'sname': name, 'attr': attr, 'cluster': cluster, 'size': size, 'ext': ext, 'real_ext': real_ext,
-                 'create_time': create_time, 'create_date': create_date, 'lad': lad, 'write_time': write_time, 'write_date': write_date }
-
+                 'create_time': create_time, 'create_date': create_date, 'lad': lad, 'write_time': write_time,
+                 'write_date': write_date}
 
         if len(lfn) > 0:
             entry['name'] = lfn
 
         if data[0] == 0xE5:
-            entry['del']='deleted'
+            entry['del'] = 'deleted'
 
         return entry
 
     def get_real_ext(self, cluster):
-        real_ext = self.read_byte(((cluster-2)* self.spc + self.first_data_sector)*512, 16)
+        real_ext = self.read_byte(((cluster - 2) * self.spc + self.first_data_sector) * 512, 16)
         return real_ext
 
-    def get_content(self, cluster): #연결된 fat를 찾아서 data를 다 읽어온다
+    def get_content(self, cluster):  # 연결된 fat를 찾아서 data를 다 읽어온다
         fats = self.get_fats_by_start_cluster(cluster)
         return self.read_clusters(fats)
+
+    def get_dir_list(self, entry):
+        self.dir_list.append(entry)
+
+        if entry['real_ext'] == 'registry hive file':
+            self.reg_list.append(entry)
+
+        else:
+            self.file_list.append(entry)
 
     def get_files(self, cluster):
         fats = self.get_fats_by_start_cluster(cluster)
         data = self.read_clusters(fats)
 
         lfn = ""
+
         for i in range(0, len(data), 32):
             entry_data = data[i:i + 32]  # 한 entry 씩 땡기네
             c = struct.unpack("<QQQQ", entry_data)
             if c[0] == 0 and c[1] == 0 and c[2] == 0 and c[3] == 0:
                 break
-
             attr = entry_data[11]
-            is_LFN = attr & 0x0F is 0x0F
+            is_LFN = attr & 0x0F == 0x0F  # 같으면 true, 다르면 false
 
-            if not is_LFN:
+            if not is_LFN:  # is_LFN이 false인 경우
                 entry = self.parse_dir_entry(entry_data, lfn.strip())
                 lfn = ""
-                #print(entry)
                 self.define_dir(entry)
+
+            else:
+                entry = self.parse_dir_entry_lfn(entry_data, lfn)
+                lfn = entry['name']
+
+    def tree_structure(self, cluster, parent):
+        # To get overall directory tree structure
+        data = self.get_content(cluster)
+
+        lfn = ""
+
+        for i in range(0, len(data), 32):
+            entry_data = data[i:i + 32]  # 한 entry 씩 땡기네
+            c = struct.unpack("<QQQQ", entry_data)
+            if c[0] == 0 and c[1] == 0 and c[2] == 0 and c[3] == 0:
+                break
+            attr = entry_data[11]
+            is_LFN = attr & 0x0F == 0x0F  # 같으면 true, 다르면 false
+
+            if not is_LFN:  # is_LFN이 false인 경우
+                entry = self.parse_dir_entry(entry_data, lfn.strip())
+                lfn = ""
+
+                if entry['cluster'] == cluster-2:
+                    parent.get_current(entry)
+
+                elif entry['sname'] == ".":
+                    parent.get_current(entry)
+
+                elif entry['sname'] == "..":
+                    parent.get_parent(entry)
+
+                elif 'del' in entry:
+                    #여기 구현하기
+                    print('deleted')
+
+                else:
+                    if entry['ext'] == "Directory":
+                        temp_sub = Dir(entry)
+                        parent.sub_dir(temp_sub)
+                        parent.dir_list.append(entry)
+                        self.tree_structure(entry['cluster'], temp_sub)
+
+                    else :
+                        parent.file_list.append(entry)
+                    #여기 작업해야함
+
             else:
                 entry = self.parse_dir_entry_lfn(entry_data, lfn)
                 lfn = entry['name']
@@ -194,36 +253,61 @@ class FAT32:
 
         return fats
 
-    def define_dir(self,entry):
+    def define_dir(self, entry):
+        if entry['attr'] == 8 or entry['attr'] == 16 or entry['attr'] == 22:
+            entry['ext'] = 'Directory'
+            self.dir_list.append(entry)
 
-       """if entry['attr']==8 :
-           print("volume :" + entry['sname'] + '    ' + str(entry['attr']))"""
+        elif entry['real_ext'] == 'registry hive file':
+            self.file_list.append(entry)
+            self.reg_list.append(entry)
 
-       if entry['attr'] == 8 or entry['attr'] == 16 or entry['attr'] == 22:
-           entry['ext']='Directory'
-           self.dir_list.append(entry)
-
-       elif entry['real_ext'] == 'registry hive file':
-           self.file_list.append(entry)
-           self.reg_list.append(entry)
-
-       else:
+        else:
             self.file_list.append(entry)
 
-
     def renew_list(self):
-        self.dir_list=[]
-        self.file_list=[]
+        self.dir_list = []
+        self.file_list = []
 
+class Dir:
+    def __init__(self, entry=None):
+        self.current_dir = entry
+        self.file_list = []
+        self.sub_dir_list = []
+        self.dir_list = []
+        self.reg_list = []
+
+    def get_current(self, entry):
+        self.current_dir = entry
+
+    def get_parent(self, entry):
+        self.parent_dir = entry
+
+    def get_dir_list(self, entry):
+        if entry['real_ext'] == 'Directory':
+            self.dir_list.append(entry)
+
+        elif entry['real_ext'] == 'registry hive file':
+            self.reg_list.append(entry)
+            self.file_list.append(entry)
+
+        else:
+            self.file_list.append(entry)
+
+    def sub_dir(self, object):
+        self.sub_dir_list.append(object)
+
+def print_recursive(root):
+    print(root.file_list)
+
+    for i in root.sub_dir_list:
+        print_recursive(i)
 
 if __name__ == '__main__':
-    print("Fat32")
-
     fs = FAT32(sys.argv[1])
-
-    #print(fs.root_cluster)
-    fs.get_files(fs.root_cluster)
-    print(fs.dir_list)
+    root = Dir()
+    fs.tree_structure(fs.root_cluster, root)
+    print_recursive(root)
 
     """fs.renew_list()
     fs.get_files(7)

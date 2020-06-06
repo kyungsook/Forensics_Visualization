@@ -19,35 +19,38 @@ class RegistryImage:
         self.space = ' '
         self.rowSpacing = 4  # How many bytes before a double space.
         self.rowLength = 16  # 헥사 창에 얼마나 많은 byte 가 들어갈 것인지
+
+        self.bps = self.imgFile.bps
+        self.spc = self.imgFile.spc
+        self.reserved_sectors = self.imgFile.reserved_sectors
+        self.number_of_fats = self.imgFile.number_of_fats
+        self.sectors = self.imgFile.sectors
+        self.fat_size = self.imgFile.fat_size
+        self.root_cluster = self.imgFile.root_cluster
         self.fds = self.imgFile.first_data_sector
-        self.dirList = []
-        self.fileList = []
-        self.regList = []
 
-    def createDB(self):
-        print()
+        #create Dir class to make tree structure of fat32 disk image file
+        self.fatTreeStructure = Dir()
+        self.imgFile.tree_structure(self.imgFile.root_cluster, self.fatTreeStructure)
 
-    def readFile(self, offset, count=1):    #파일을 offset에서부터 count까지 읽기
-        self.imgFile.read_sector(offset, count)
-        print()
+    #create DB file from fat32 Disk Image file
+    def createDB(self, src, filename):
+        '''
+        :param src: data
+        :param filename: name of newly created DB file
+        :return:
+        '''
+
+        self.dbFileName = filename
+        DBfd = open(self.dbFileName, 'wb')
+        DBfd.write(src)
+        DBfd.close()
 
     def get_content(self, cluster): #연결된 fat를 찾아서 data 다 읽어온다
         return self.imgFile.get_content(cluster)
 
     def get_files(self, cluster):
         self.imgFile.get_files(cluster)
-
-    def get_dirList(self):  #dir list 반환
-        self.dirList = self.imgFile.dir_list
-        return self.dirList
-
-    def get_fileList(self): #file list 반환
-        self.fileList = self.imgFile.file_list
-        return self.fileList
-
-    def get_regList(self):
-        self.regList = self.imgFile.reg_list
-        return self.regList
 
     def cluster_to_offset(self, cluster):
         offset = ((cluster-2) * self.imgFile.spc + self.imgFile.first_data_sector) * self.imgFile.bps
@@ -56,14 +59,7 @@ class RegistryImage:
     def read_register(self, cluster, size):
         offset = self.cluster_to_offset(cluster)
         self.temp = Registry.Registry(self.imgFile, offset, size)
-        print(offset)
         Registry.rec2(self.temp.root())
-        #myDB = DBManager.DBManager('test.db')
-        #myDB.drop_table()
-        #myDB.create_table('Hive')
-        #Registry.write_db(self.temp.root(), myDB)
-        #Registry.rec2(self.temp.root(), 0)
-        #myDB.close_db()
 
     def get_offsetText(self, data, cluster):   #offset 반환
         offsetText = '' #return할 offsetText
@@ -102,13 +98,44 @@ class RegistryImage:
         asciiText = ''
         return asciiText
 
+class Dir:
+    def __init__(self, entry=None):
+        self.current_dir = entry
+        self.file_list = []
+        self.sub_dir_list = []
+        self.dir_list = []
+        self.reg_list = []
+
+    def get_current(self, entry):
+        self.current_dir = entry
+
+    def get_parent(self, entry):
+        self.parent_dir = entry
+
+    def get_dir_list(self, entry):
+        if entry['real_ext'] == 'Directory':
+            self.dir_list.append(entry)
+
+        elif entry['real_ext'] == 'registry hive file':
+            self.reg_list.append(entry)
+            self.file_list.append(entry)
+
+        else:
+            self.file_list.append(entry)
+
+    def sub_dir(self, object):
+        self.sub_dir_list.append(object)
+
+def print_recursive(root):
+    print(root.file_list)
+
+    for i in root.sub_dir_list:
+        print_recursive(i)
+
 if __name__ == '__main__':
     app = RegistryImage(sys.argv[1])
-    #print(app.spc)
-    #app.get_regList()
-    app.read_register(60778, 4571136)
-    #app.rec2()
-    #print(app.get_offsetText(app.get_content(60778), 60778), end='')
-    #print(app.get_hexText(app.get_content(60778)))
-    #print(app.fds)
-    #print(app.regList)
+    #print_recursive(app.fatTreeStructure)
+    #buf = app.get_content(63142)
+    #app.createDB(buf, 'a.db')
+
+
