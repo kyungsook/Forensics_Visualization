@@ -210,7 +210,7 @@ class FAT32:
                     parent.get_current(entry)
 
                 elif entry['sname'] == ".":
-                    parent.get_current(entry)
+                    continue
 
                 elif entry['sname'] == "..":
                     parent.get_parent(entry)

@@ -22,9 +22,12 @@ from __future__ import unicode_literals
 import sys
 import os
 import wx
+import wx.html
 import Registry
-import temp
+import drawGraph
 import webbrowser
+import export
+import General
 
 ID_FILE_OPEN = wx.NewIdRef()
 ID_FILE_SESSION_SAVE = wx.NewIdRef()
@@ -33,6 +36,10 @@ ID_TAB_CLOSE = wx.NewIdRef()
 ID_FILE_EXIT = wx.NewIdRef()
 ID_HELP_ABOUT = wx.NewIdRef()
 ID_DRAW_GRAPH = wx.NewIdRef()
+ID_HISTORY_EXPORT = wx.NewIdRef()
+
+offset_text = '0000000'
+hex_text = '11111111'
 
 
 def nop(*args, **kwargs):
@@ -52,6 +59,101 @@ def _expand_into(dest, src):
     vbox.Add(src, 1, wx.EXPAND | wx.ALL)    #src에 꽉 차게 넣는다
     dest.SetSizer(vbox)
 
+
+def _format_hex(data):
+    byte_format = {}
+    for c in xrange(256):   #return 값이 xrange. 수정이 불가능한 순차적 접근 가능한 데이터 타입
+        if c > 126:
+            byte_format[c] = '.'
+        elif len(repr(chr(c))) == 3 and chr(c):
+            byte_format[c] = chr(c)
+        else:
+            byte_format[c] = '.'
+
+    def format_bytes(s):
+        return "".join([byte_format[ord(c)] for c in s])
+
+    def dump(src, length=16):
+        N = 0
+        result = ''
+        while src:
+            s, src = src[:length], src[length:]
+            hexa = ' '.join(["%02X" % ord(x) for x in s])
+            s = format_bytes(s)
+            result += "%04X   %-*s   %s\n" % (N, length * 3, hexa, s)
+            N += length
+        return result
+    return dump(data)
+
+
+class DataPanel(wx.Panel):
+    """
+    Displays the contents of a Registry value.
+    Shows a text string where appropriate, or a hex dump.
+    """
+    def __init__(self, *args, **kwargs):
+        super(DataPanel, self).__init__(*args, **kwargs)
+        self._sizer = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(self._sizer)
+
+    def display_value(self, value):
+        self._sizer.Clear()
+
+        view = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        view.SetValue(offset_text)
+
+        self._sizer.Add(view, 1, wx.EXPAND)
+        self._sizer.Layout()
+
+    def clear_value(self):
+        self._sizer.Clear()
+        self._sizer.Add(wx.Panel(self, -1), 1, wx.EXPAND)
+        self._sizer.Layout()
+
+class ImagePanel(wx.Panel):
+    """
+        Displays the contents of a Registry value.
+        Shows a text string where appropriate, or a hex dump.
+        """
+
+    def __init__(self, *args, **kwargs):
+        super(ImagePanel, self).__init__(*args, **kwargs)
+        self._sizer = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(self._sizer)
+
+
+class ValuesListCtrl(wx.ListCtrl):
+    """
+    Shows a list of values associated with a Registry key.
+    """
+    def __init__(self, *args, **kwargs):
+        super(ValuesListCtrl, self).__init__(*args, **kwargs)
+        self.InsertColumn(0, "Name")
+        self.InsertColumn(1, "Type")
+        self.InsertColumn(2, "Size")
+        self.InsertColumn(3, "Time")
+        self.InsertColumn(4, "Data")
+        self.SetColumnWidth(0, 100)
+        self.SetColumnWidth(1, 100)
+        self.SetColumnWidth(2, 100)
+        self.SetColumnWidth(3, 100)
+        self.SetColumnWidth(4, 300)
+
+        self.values = {}
+
+    def clear_values(self):
+        self.DeleteAllItems()
+        self.values = {}
+
+    def add_value(self, value):
+        n = self.GetItemCount()
+        self.InsertStringItem(n, value.name())
+        self.SetStringItem(n, 1, value.value_type_str())
+        self.values[value.name()] = value
+
+    def get_value(self, valuename):
+        return self.values[valuename]
+
 class RegistryTreeCtrl(wx.TreeCtrl):
     """
     Treeview control that displays the Registry key structure.
@@ -60,17 +162,24 @@ class RegistryTreeCtrl(wx.TreeCtrl):
         super(RegistryTreeCtrl, self).__init__(*args, **kwargs)
         self.Bind(wx.EVT_TREE_ITEM_EXPANDING, self.OnExpandKey)
 
-    def add_registry(self, fat):
+    def add_registry(self, registry):
         """
         Add the registry to the control as the (a?) root element.
         """
-        root_key = fat.root
-        root_item = self.AddRoot(root_key.subkeys)
-        self.SetPyData(root_item, {"key": root_key,
-                                   "has_expanded": False})
-
-        if len(root_key.subkeys) > 0:
+        # root_key = registry.root()
+        # root_item = self.AddRoot(root_key.name())
+        # self.SetPyData(root_item, {"key": root_key,
+        #                            "has_expanded": False})
+        #
+        # if len(root_key.subkeys()) > 0:
+        #     self.SetItemHasChildren(root_item)
+        root_key = registry.fatTreeStructure
+        #print(registry.fatTreeStructure)
+        root_item = self.AddRoot(root_key.current_dir['sname'])#루트만드는곳
+        self.SetPyData(root_item, {"key": root_key,"has_expanded":False})
+        if len(root_key.sub_dir_list) > 0:
             self.SetItemHasChildren(root_item)
+
 
     def delete_registry(self):
         """
@@ -93,7 +202,7 @@ class RegistryTreeCtrl(wx.TreeCtrl):
 
             cont = True
             while node and cont:
-                key = self.GetPyData(node)["sname"]
+                key = self.GetPyData(node)["key"]
                 if key.name() == part:
                     self.SelectItem(node)
                     cont = False
@@ -108,13 +217,12 @@ class RegistryTreeCtrl(wx.TreeCtrl):
             return
 
         key = self.GetPyData(item)["key"]
-
-        for subkey in key.subkeys():
-            subkey_item = self.AppendItem(item, subkey.name())
+        for subkey in key.sub_dir_list:
+            subkey_item = self.AppendItem(item, subkey.current_dir['name'])
             self.SetPyData(subkey_item, {"key": subkey,
                                          "has_expanded": False})
 
-            if len(subkey.subkeys()) > 0:
+            if len(subkey.sub_dir_list) > 0:
                 self.SetItemHasChildren(subkey_item)
 
         self.GetPyData(item)["has_expanded"] = True
@@ -127,24 +235,98 @@ class RegistryTreeCtrl(wx.TreeCtrl):
         if not self.GetPyData(item)["has_expanded"]:
             self._extend(item)
 
-class OtherFrame(wx.Frame):
+class FilterFrame(wx.Frame):    # visualization filter
+
     def __init__(self, title, parent=None):
-        wx.Frame.__init__(self, parent=parent, title=title, size=(400, 300),
-                          style=wx.DEFAULT_FRAME_STYLE ^ wx.MAXIMIZE_BOX ^ wx.RESIZE_BORDER)
-        panel = wx.Panel(self, -1, size=(400, 300))
+        wx.Frame.__init__(self, parent=parent, title=title, size =(400, 300),
+                          style=wx.DEFAULT_FRAME_STYLE^wx.MAXIMIZE_BOX^wx.RESIZE_BORDER)
+        panel = wx.Panel(self, -1, size =(400, 300))
 
-        # wx.StaticText(panel, -1, "View", pos=(20, 10))
-        # wx.RadioBox(panel, 1, "Registry File", (30, 35), (160, -1))
-        # wx.RadioBox(panel, 1, "General File", (30, 55), (160, -1))
-        # wx.RadioBox(panel, 1, "Internet History", (30, 75), (160, -1))
-
-
+        self.viewList = ['Registry File Access History', 'General File Access History', 'Internet URL History']
         self.rbox = wx.RadioBox(panel, label='View', pos=(20, 20), choices=self.viewList, majorDimension=1)
         self.rbox.Bind(wx.EVT_RADIOBOX, self.onRadioBox)
+
+        wx.StaticText(panel, -1, "Period", pos=(25, 130))
+        self.text_from = wx.TextCtrl(panel, -1, pos=(20, 155))
+        self.text_from.SetHint("YYYY-MM-DD")
+        wx.StaticText(panel, -1, "~", pos=(140, 160))
+        self.text_to = wx.TextCtrl(panel, -1, pos=(160, 155))
+        self.text_to.SetHint("YYYY-MM-DD")
 
         button = wx.Button(panel, label="Draw", pos=(170, 200), size=(50, 30))
         self.Bind(wx.EVT_BUTTON, self.open_html_file, button)
         self.Show()
+
+    def open_html_file(self, event):
+        tableName = ""
+        date_from = self.text_from.GetValue()
+        date_to = self.text_to.GetValue()
+
+        myGraph = drawGraph.Graph(date_from, date_to)
+
+        if self.rbox.GetStringSelection() == self.viewList[0]:
+            tableName = "Hive"
+        elif self.rbox.GetStringSelection() == self.viewList[1]:
+            tableName = "General"
+        elif self.rbox.GetStringSelection() == self.viewList[2]:
+            tableName = "urls"
+
+        myGraph.get_total_key()
+        myGraph.draw_graph_html(tableName)
+
+        filepath = "UserRecord.html"
+
+        # open raw html
+        webbrowser.open_new_tab(filepath)
+
+        # open html on new window
+        # frm = MyHtmlFrame(None, filepath)
+        # frm.Show()
+
+    def onRadioBox(self, event):
+        if self.rbox.GetStringSelection() == self.viewList[0]:
+            print("hive")
+        elif self.rbox.GetStringSelection() == self.viewList[1]:
+            print("general file")
+        elif self.rbox.GetStringSelection() == self.viewList[2]:
+            print("urls")
+
+class FilterFrame2(wx.Frame):   # web history export filter
+
+    def __init__(self, title, parent=None):
+        wx.Frame.__init__(self, parent=parent, title=title, size =(400, 300),
+                          style=wx.DEFAULT_FRAME_STYLE^wx.MAXIMIZE_BOX^wx.RESIZE_BORDER)
+        panel = wx.Panel(self, -1, size =(400, 300))
+
+        self.viewList = ['Registry File Access History', 'General File Access History', 'Internet URL History']
+        self.rbox = wx.RadioBox(panel, label='View', pos=(20, 20), choices=self.viewList, majorDimension=1)
+        self.rbox.Bind(wx.EVT_RADIOBOX, self.onRadioBox)
+
+        wx.StaticText(panel, -1, "Period", pos=(25, 130))
+        self.text_from = wx.TextCtrl(panel, -1, pos=(20, 155))
+        self.text_from.SetHint("YYYY-MM-DD")
+        wx.StaticText(panel, -1, "~", pos=(140, 160))
+        self.text_to = wx.TextCtrl(panel, -1, pos=(160, 155))
+        self.text_to.SetHint("YYYY-MM-DD")
+
+        button = wx.Button(panel, label="Export", pos=(170, 200), size=(50, 30))
+        self.Bind(wx.EVT_BUTTON, self.export_file, button)
+        self.Show()
+
+    def export_file(self, event):
+        date_from = self.text_from.GetValue()
+        date_to = self.text_to.GetValue()
+
+        if self.rbox.GetStringSelection() == self.viewList[0]:
+            export.export_history('Hive', date_from, date_to)
+            print("hive")
+        elif self.rbox.GetStringSelection() == self.viewList[1]:
+            export.export_history('GeneralFile', date_from, date_to)
+            print("general file")
+        elif self.rbox.GetStringSelection() == self.viewList[2]:
+            export.export_history('urls', date_from, date_to)
+            print("urls")
+        print("export success!")
 
     def onRadioBox(self, event):
         if self.rbox.GetStringSelection() == self.viewList[0]:
@@ -155,11 +337,33 @@ class OtherFrame(wx.Frame):
             print("urls")
 
 
+class MyHtmlFrame(wx.Frame):
+    def __init__(self, parent, title):
+        wx.Frame.__init__(
+            self,
+            parent,
+            -1,
+            title,
+            size=(600, 400)
+        )
+
+        # Use current window as container of the Html Frame
+        html = wx.html.HtmlWindow(self)
+
+        # if "gtk2" in wx.PlatformInfo:
+        #     html.SetStandardFonts()
+
+        # Alternatively render raw HTML with the SetPage method
+        # html.SetPage("<h4>Hello World</h4>")
+        # Render a local HTML file
+        html.LoadPage("UserRecord.html")
+
+
 class RegistryFileView(wx.Panel):
     """
     A three-paned display of the RegistryTreeCtrl, ValueListCtrl, and DataPanel.
     """
-    def __init__(self, parent, fat, filename):
+    def __init__(self, parent, registry, filename):
         super(RegistryFileView, self).__init__(parent, -1, size=(800, 600))
         self._filename = filename
 
@@ -170,19 +374,38 @@ class RegistryFileView(wx.Panel):
 
         hsplitter = wx.SplitterWindow(vsplitter, -1)
         panel_top = wx.Panel(hsplitter, -1)
-        panel_bottom = wx.Panel(hsplitter, -1)
+        #panel_bottom = wx.Panel(hsplitter, -1)
 
-        hsplitter.SplitHorizontally(panel_top, panel_bottom)
+        vsplitter_data = wx.SplitterWindow(hsplitter, -1)
+        panel_offset = wx.Panel(vsplitter_data, -1)
+        panel_hex = wx.Panel(vsplitter_data, -1)
+
+
+        self._value_list_view = ValuesListCtrl(panel_top, -1, style=wx.LC_REPORT)
+        self._offset_view = DataPanel(panel_offset, -1)
+        self._hex_view = DataPanel(panel_hex, -1)
+
+        _expand_into(panel_top,    self._value_list_view)
+        _expand_into(panel_offset, self._offset_view)
+        _expand_into(panel_hex, self._hex_view)
+
         vsplitter.SplitVertically(panel_left, hsplitter)
+        hsplitter.SplitHorizontally(panel_top, vsplitter_data)
+        vsplitter_data.SplitVertically(panel_offset, panel_hex)
 
         # give enough space in the data display for the hex output
+        hsplitter.SetSashPosition(250, True)
         vsplitter.SetSashPosition(325, True)
+        vsplitter_data.SetSashPosition(800, True)
         _expand_into(self, vsplitter)
         self.Centre()
 
+        self._value_list_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueSelected)
+        self._offset_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueSelected)
+        self._hex_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueSelected)
         self._tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnKeySelected)
 
-        self._tree.add_registry(fat)
+        self._tree.add_registry(registry)
 
     def OnKeySelected(self, event):
         item = event.GetItem()
@@ -199,16 +422,21 @@ class RegistryFileView(wx.Panel):
                 pass
             parent = parent.GetParent()
 
-        self._data_view.clear_value()
+        self._offset_view.clear_value()
+        self._hex_view.clear_value()
         self._value_list_view.clear_values()
+
         for value in key.values():
             self._value_list_view.add_value(value)
+            # self._offset_view.add_value(value)
+            # self._hex_view.add_value(value)
 
     def OnValueSelected(self, event):
         item = event.GetItem()
 
         value = self._value_list_view.get_value(item.GetText())
-        self._data_view.display_value(value)
+        self._hex_view.display_value(value)
+        self._offset_view.display_value(value)
 
     def filename(self):
         """
@@ -236,7 +464,7 @@ class RegistryFileViewer(wx.Frame):
     """
     The main RegView GUI application.
     """
-    def __init__(self, parent, files):
+    def __init__(self, parent):
         super(RegistryFileViewer, self).__init__(parent, -1, "Registry File Viewer", size=(800, 600))
         self.CreateStatusBar()
 
@@ -245,22 +473,22 @@ class RegistryFileViewer(wx.Frame):
         file_menu = wx.Menu()   #메뉴바 중 'File' 메뉴 생성
         _open = file_menu.Append(ID_FILE_OPEN, '&Open File')    #File 메뉴에 open file, save, open, exit 넣음
         self.Bind(wx.EVT_MENU, self.menu_file_open, _open)
-        file_menu.AppendSeparator()
-        _session_save = file_menu.Append(ID_FILE_SESSION_SAVE, '&Save Session')
-        self.Bind(wx.EVT_MENU, self.menu_file_session_save, _session_save)
-        _session_open = file_menu.Append(ID_FILE_SESSION_OPEN, '&Open Session')
-        self.Bind(wx.EVT_MENU, self.menu_file_session_open, _session_open)
+        _history = file_menu.Append(ID_HISTORY_EXPORT, '&Export')
+        self.Bind(wx.EVT_MENU, self.menu_history_export, _history)
+        # file_menu.AppendSeparator()
+        # _session_save = file_menu.Append(ID_FILE_SESSION_SAVE, '&Save Session')
+        # self.Bind(wx.EVT_MENU, self.menu_file_session_save, _session_save)
+        # _session_open = file_menu.Append(ID_FILE_SESSION_OPEN, '&Open Session')
+        # self.Bind(wx.EVT_MENU, self.menu_file_session_open, _session_open)
         file_menu.AppendSeparator()
         _exit = file_menu.Append(ID_FILE_EXIT, '&Exit Program')
         self.Bind(wx.EVT_MENU, self.menu_file_exit, _exit)
-
-
         menu_bar.Append(file_menu, "&File")
 
-        tab_menu = wx.Menu()
-        _close = tab_menu.Append(ID_TAB_CLOSE, '&Close')
-        self.Bind(wx.EVT_MENU, self.menu_tab_close, _close)
-        menu_bar.Append(tab_menu, "&Tab")
+        vis_menu = wx.Menu()
+        _graph = vis_menu.Append(ID_DRAW_GRAPH, '&Draw Graph')
+        self.Bind(wx.EVT_MENU, self.menu_draw_graph, _graph)
+        menu_bar.Append(vis_menu, "&Visualization")
 
         help_menu = wx.Menu()
         _about = help_menu.Append(ID_HELP_ABOUT, '&About')
@@ -271,24 +499,26 @@ class RegistryFileViewer(wx.Frame):
         p = wx.Panel(self)
         self._nb = wx.Notebook(p)
 
-        for filename in files:
-            self._open_file(filename)
-
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self._nb, 1, wx.EXPAND)
         p.SetSizer(sizer)
         self.Layout()
 
-    def _open_file(self, filename):
+    def _open_registry_file(self, filename):
         """
         Open a Registry file by filename into a new tab and return the window.
         """
-        with open(filename, "rb") as f:
-            temp.fs=f
-            fat = temp.fs
-            view = RegistryFileView(self._nb, fat=fat, filename=filename)
+        self.dskImg = General.RegistryImage(filename)
+        view = RegistryFileView(self._nb, registry=self.dskImg, filename=filename)
+        self._nb.AddPage(view, basename(filename))
+        return view
+        #General.print_dir_recursive(self.dskImg.fatTreeStructure)
+
+        """with open(filename, "rb") as f:
+            registry = Registry.Registry(f)
+            view = RegistryFileView(self._nb, registry=registry, filename=filename)
             self._nb.AddPage(view, basename(filename))
-            return view
+            return view"""
         # TODO handle error
 
     def menu_file_open(self, evt):
@@ -296,7 +526,7 @@ class RegistryFileViewer(wx.Frame):
         if dialog.ShowModal() != wx.ID_OK:
             return
         filename = os.path.join(dialog.GetDirectory(), dialog.GetFilename())
-        self._open_file(filename)
+        self._open_registry_file(filename)
 
     def menu_file_exit(self, evt):
         sys.exit(0)
@@ -321,7 +551,7 @@ class RegistryFileViewer(wx.Frame):
                 filename = lines.pop(0)
                 path = lines.pop(0)
 
-                view = self._open_file(filename)
+                view = self._open_registry_file(filename)
                 view.select_path(path.partition("\\")[2])
 
             self.SetStatusText("Opened session")
@@ -343,22 +573,24 @@ class RegistryFileViewer(wx.Frame):
             self.SetStatusText("Saved session")
         # TODO handle error
 
-    def menu_tab_close(self, evt):
-        self._nb.RemovePage(self._nb.GetSelection())
 
     def menu_help_about(self, evt):
-        wx.MessageBox("regview.py, a part of `python-registry`\n\nhttp://www.williballenthin.com/registry/", "info")
+        wx.MessageBox("please visit our Github \n\n https://github.com/kyungsook/Forensics_Visualization", "About")
 
+    def menu_draw_graph(self, evt):
+        print("창 띄우기")
+        title = 'Filter'
+        frame = FilterFrame(title = title)
 
-
+    def menu_history_export(self, evt):
+        print("웹 히스토리 내보내기")
+        title = 'Filter'
+        frame = FilterFrame2(title=title)
 
 
 if __name__ == '__main__':
     app = wx.App(False)
 
-    filenames = []
-    filenames = sys.argv[1:]
-
-    frame = RegistryFileViewer(None, filenames)
+    frame = RegistryFileViewer(None)
     frame.Show()
     app.MainLoop()
