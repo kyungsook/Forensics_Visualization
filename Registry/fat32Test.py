@@ -225,6 +225,7 @@ class FAT32:
 
                 else:
                     parent.file_list.append(entry)
+                    parent.total_file_list.append(entry)#파일 일때 다 넣기
 
                     if entry['real_ext'] == 'registry hive file':
                         offset = self.cluster_to_offset(entry['cluster'])

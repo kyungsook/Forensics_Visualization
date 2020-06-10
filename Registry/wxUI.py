@@ -177,7 +177,7 @@ class ValuesListCtrl(wx.ListCtrl):
         if 'del' in entry:
             self.SetItem(n, 4, 'DELETED FILE')
 
-    def add_value(self, value):
+    def add_value(self, value,timestamp):
         """
         add registry value list
         Column(0, "Name")
@@ -189,7 +189,8 @@ class ValuesListCtrl(wx.ListCtrl):
         n = self.GetItemCount()
         self.InsertItem(n, value.name())
         self.SetItem(n, 1, value.value_type_str())
-        self.SetItem(n, 4, str(value.raw_data()))
+        self.SetItem(n,3, str(timestamp))
+        self.SetItem(n, 4, value.value())#고치기 이상하게 나옴
         self.values[value.name()] = value
         print(self.values)
 
@@ -450,6 +451,7 @@ class RegistryFileView(wx.Panel):
         self._filename = filename
         self.fileobj = fileobj
 
+
         vsplitter = wx.SplitterWindow(self, -1)
         panel_left = wx.Panel(vsplitter, -1)
         self._tree = DirTreeCtrl(panel_left, -1)
@@ -503,7 +505,6 @@ class RegistryFileView(wx.Panel):
             item = self._tree.GetSelection()
 
         key_info = self._tree.GetItemData(item)["key"]
-
         parent = self.GetParent()
         while parent:
             try:
@@ -541,7 +542,7 @@ class RegistryFileView(wx.Panel):
         # registry일 경우
         try:
             for value in key_info.values():
-                self._value_list_view.add_value(value)
+                self._value_list_view.add_value(value,key_info.timestamp())
 
             #cluster = int(self.offset_to_cluster(offset))
             #self.print_hex_data(cluster)
@@ -551,11 +552,20 @@ class RegistryFileView(wx.Panel):
     def OnValueClicked(self, event):
         item = event.GetItem()
 
+        key_info = self.fileobj.fatTreeStructure.total_file_list #파일 정보 리스트 저장 지금보니 굳이 안해도 될듯 ㅋㅋ
+        self._offset_view.clear_value()
+        self._hex_view.clear_value()
+        for i in key_info : #for문 돌면서 name을 찾아서 클릭한 이름 가져와서 비교 후 그 entry에 있는 클러스터 정보 출력
+            if i['name'] == str(item.GetText()) :
+                print(i)
+                self.print_hex_data(i['cluster'])
+                break
+
+
         # TODO: offset, hex data 출력
-        value = self._value_list_view.get_value(item.GetText())
-        print(value)
-        #self._hex_view.display_value(value)
-        #self._offset_view.display_value(value)
+        #value = self._value_list_view.get_value(item.GetText())
+      #  print(self._hex_view.display_value(value))
+       # print(self._offset_view.display_value(value))
 
     # TODO: use thread to shorten time in processing
     def print_hex_data(self, cluster):
