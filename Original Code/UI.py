@@ -68,12 +68,10 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
         self.width = 1280
         self.height = 840
 
-
         self.byteWidth = 2  # How many bits to include in a byte.
         self.mode = Mode.READ
         self.initUI()
         self.read_cluster=2
-
 
     # openFile ... Opens a file directory and returns the filename.
     def openFile(self):
