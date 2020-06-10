@@ -391,7 +391,7 @@ class App(QMainWindow, QWidget):  # 창의 대부분의 기능
                     self.read_FAT_DATA.renew_list()
                     self.read_FAT_DATA.get_files(self.read_cluster)
                     self.generateView(self.read_FAT_DATA.get_content(self.read_cluster), self.read_cluster)
-                    print(self.read_FAT_DATA.reg_list)
+                    #print(self.read_FAT_DATA.reg_list)
 
 
     def file_button_on_clicked(self, name):

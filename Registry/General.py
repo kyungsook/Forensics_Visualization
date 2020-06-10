@@ -9,6 +9,7 @@ from enum import Enum
 import fat32Test
 import Registry
 import DBManager
+import Dir
 
 class RegistryImage:
     def __init__(self, filename):
@@ -30,15 +31,16 @@ class RegistryImage:
         self.fds = self.imgFile.first_data_sector
 
         #create Dir class to make tree structure of fat32 disk image file
-        self.fatTreeStructure = Dir()
+        self.fatTreeStructure = Dir.Dir()
         self.imgFile.tree_structure(self.imgFile.root_cluster, self.fatTreeStructure)
 
     #create DB file from fat32 Disk Image file
-    def createDB(self, src, filename):
+    def extractDB(self, src, filename):
         '''
+        extract DB file from Disk Image file
         :param src: data
         :param filename: name of newly created DB file
-        :return:
+        :return: None
         '''
 
         self.dbFileName = filename
@@ -46,20 +48,17 @@ class RegistryImage:
         DBfd.write(src)
         DBfd.close()
 
-    def get_content(self, cluster): #연결된 fat를 찾아서 data 다 읽어온다
+    def get_content(self, cluster):
+        '''
+        read all data from connected FAT
+        :param cluster: start cluster
+        :return: data
+        '''
         return self.imgFile.get_content(cluster)
-
-    def get_files(self, cluster):
-        self.imgFile.get_files(cluster)
 
     def cluster_to_offset(self, cluster):
         offset = ((cluster-2) * self.imgFile.spc + self.imgFile.first_data_sector) * self.imgFile.bps
         return offset
-
-    def read_register(self, cluster, size):
-        offset = self.cluster_to_offset(cluster)
-        self.temp = Registry.Registry(self.imgFile, offset, size)
-        Registry.rec2(self.temp.root())
 
     def get_offsetText(self, data, cluster):   #offset 반환
         offsetText = '' #return할 offsetText
@@ -98,44 +97,36 @@ class RegistryImage:
         asciiText = ''
         return asciiText
 
-class Dir:
-    def __init__(self, entry=None):
-        self.current_dir = entry
-        self.file_list = []
-        self.sub_dir_list = []
-        self.dir_list = []
-        self.reg_list = []
 
-    def get_current(self, entry):
-        self.current_dir = entry
+def print_dir_recursive(root):
+    print(root.dir_list)
 
-    def get_parent(self, entry):
-        self.parent_dir = entry
+    for i in root.dir_obj_list:
+        print_dir_recursive(i)
 
-    def get_dir_list(self, entry):
-        if entry['real_ext'] == 'Directory':
-            self.dir_list.append(entry)
 
-        elif entry['real_ext'] == 'registry hive file':
-            self.reg_list.append(entry)
-            self.file_list.append(entry)
-
-        else:
-            self.file_list.append(entry)
-
-    def sub_dir(self, object):
-        self.sub_dir_list.append(object)
-
-def print_recursive(root):
+def print_file_recursive(root):
     print(root.file_list)
 
-    for i in root.sub_dir_list:
-        print_recursive(i)
+    for i in root.dir_obj_list:
+        print_file_recursive(i)
+
+def print_reg_recursive(root):
+    try:
+        for i in root.reg_obj_list:
+            Registry.rec2(i.root())
+    except AttributeError:
+        pass
+
+    for i in root.dir_obj_list:
+        print_reg_recursive(i)
 
 if __name__ == '__main__':
-    app = RegistryImage(sys.argv[1])
-    #print_recursive(app.fatTreeStructure)
+    app = RegistryImage(sys.argv[1])    #처음에 디스크 이미지 파일을 읽고 디렉토리 트리구조를 저장
+    #print_dir_recursive(app.fatTreeStructure)
+    print_file_recursive(app.fatTreeStructure)
     #buf = app.get_content(63142)
     #app.createDB(buf, 'a.db')
+    #print_reg_recursive(app.fatTreeStructure)
 
 

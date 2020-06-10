@@ -1,5 +1,7 @@
 import sys
 import struct
+import Registry
+import Dir
 
 class FAT32:
     END_CLUSTER = 0x0fffffff
@@ -27,6 +29,10 @@ class FAT32:
     def read_byte(self, offset, count=1):
         self.fd.seek(offset)
         return self.fd.read(count)
+
+    def cluster_to_offset(self, cluster):
+        offset = ((cluster-2) * self.spc + self.first_data_sector) * self.bps
+        return offset
 
     def read_sector(self, offset, count=1):
         self.fd.seek(offset * self.bps)
@@ -156,15 +162,6 @@ class FAT32:
         fats = self.get_fats_by_start_cluster(cluster)
         return self.read_clusters(fats)
 
-    def get_dir_list(self, entry):
-        self.dir_list.append(entry)
-
-        if entry['real_ext'] == 'registry hive file':
-            self.reg_list.append(entry)
-
-        else:
-            self.file_list.append(entry)
-
     def get_files(self, cluster):
         fats = self.get_fats_by_start_cluster(cluster)
         data = self.read_clusters(fats)
@@ -215,20 +212,26 @@ class FAT32:
                 elif entry['sname'] == "..":
                     parent.get_parent(entry)
 
-                elif 'del' in entry:
-                    #여기 구현하기
-                    print('deleted')
+                elif entry['ext'] == "Directory":
+                        temp_sub = Dir.Dir(entry)
+                        parent.dir_obj_list.append(temp_sub)
+                        parent.dir_list.append(entry)
+
+                        if 'del' not in entry:
+                            self.tree_structure(entry['cluster'], temp_sub)
 
                 else:
-                    if entry['ext'] == "Directory":
-                        temp_sub = Dir(entry)
-                        parent.sub_dir(temp_sub)
-                        parent.dir_list.append(entry)
-                        self.tree_structure(entry['cluster'], temp_sub)
+                    parent.file_list.append(entry)
 
-                    else :
-                        parent.file_list.append(entry)
-                    #여기 작업해야함
+                    if entry['real_ext'] == 'registry hive file':
+                        offset = self.cluster_to_offset(entry['cluster'])
+                        if 'name' in entry:
+                            temp_reg = Registry.Registry(self.fd, offset, entry['size'], filename=entry['name'])
+
+                        else:
+                            temp_reg = Registry.Registry(self.fd, offset, entry['size'], filename=entry['sname'])
+                        parent.reg_obj_list.append(temp_reg)
+                        parent.reg_list.append(entry)
 
             else:
                 entry = self.parse_dir_entry_lfn(entry_data, lfn)
@@ -269,43 +272,16 @@ class FAT32:
         self.dir_list = []
         self.file_list = []
 
-class Dir:
-    def __init__(self, entry=None):
-        self.current_dir = entry
-        self.file_list = []
-        self.sub_dir_list = []
-        self.dir_list = []
-        self.reg_list = []
-
-    def get_current(self, entry):
-        self.current_dir = entry
-
-    def get_parent(self, entry):
-        self.parent_dir = entry
-
-    def get_dir_list(self, entry):
-        if entry['real_ext'] == 'Directory':
-            self.dir_list.append(entry)
-
-        elif entry['real_ext'] == 'registry hive file':
-            self.reg_list.append(entry)
-            self.file_list.append(entry)
-
-        else:
-            self.file_list.append(entry)
-
-    def sub_dir(self, object):
-        self.sub_dir_list.append(object)
 
 def print_recursive(root):
     print(root.file_list)
 
-    for i in root.sub_dir_list:
+    for i in root.dir_obj_list:
         print_recursive(i)
 
 if __name__ == '__main__':
     fs = FAT32(sys.argv[1])
-    root = Dir()
+    root = Dir.Dir()
     fs.tree_structure(fs.root_cluster, root)
     print_recursive(root)
 

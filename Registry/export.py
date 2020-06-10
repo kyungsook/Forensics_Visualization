@@ -3,7 +3,6 @@ from openpyxl.utils.exceptions import IllegalCharacterError
 
 import DBManager
 
-
 class export_history():
     def __init__(self, opt, date_from, date_to):
         self.table = opt

@@ -240,13 +240,14 @@ class RegistryKey(object):
     A RegistryKey may have a set of values associated with it,
       as well as a last modified timestamp.
     """
-    def __init__(self, nkrecord):
+    def __init__(self, nkrecord, filename=''):
         """
 
         Arguments:
         - `NKRecord`:
         """
         self._nkrecord = nkrecord
+        self._filename = filename
 
     def __str__(self):
         return "Registry Key %s with %d values and %d subkeys" % \
@@ -260,6 +261,9 @@ class RegistryKey(object):
         Get the last modified timestamp as a Python datetime.
         """
         return self._nkrecord.timestamp()
+
+    def filename(self):
+        return self._filename
 
     def name(self):
         """
@@ -373,7 +377,7 @@ class Registry(object):
     """
     A class for parsing and reading from a Windows Registry file.
     """
-    def __init__(self, f):
+    def __init__(self, f, offset, size, filename=''):
         """
         Constructor.
         Arguments:
@@ -381,19 +385,10 @@ class Registry(object):
               If a Python string is passed, it is interpreted as a filename,
               and the corresponding file is opened.
         """
-        try:
-            self._buf = f.read()
-        except AttributeError:
-            with open(f, "rb") as f:
-                self._buf = f.read()
+        f.seek(offset)
+        self._buf = f.read(size)
         self._regf = RegistryParse.REGFBlock(self._buf, 0, False)
-
-        #print(type(offset))
-        # f.seek(offset)
-        # self._buf = f.fd.read(size)
-        # self._regf = RegistryParse.REGFBlock(self._buf, 0, False)
-
-
+        self._filename = filename
 
     def hive_name(self):
         """Returns the internal file name"""
@@ -434,7 +429,7 @@ class Registry(object):
         """
         Return the first RegistryKey in the hive.
         """
-        return RegistryKey(self._regf.first_key())
+        return RegistryKey(self._regf.first_key(), self._filename)
 
     def open(self, path):
         """
