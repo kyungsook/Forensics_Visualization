@@ -92,6 +92,7 @@ class DataPanel(wx.Panel):
     Displays the contents of a Registry value.
     Shows a text string where appropriate, or a hex dump.
     """
+
     def __init__(self, *args, **kwargs):
         super(DataPanel, self).__init__(*args, **kwargs)
         self._sizer = wx.BoxSizer(wx.VERTICAL)
@@ -101,6 +102,8 @@ class DataPanel(wx.Panel):
         self._sizer.Clear()
 
         view = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        font1 = wx.Font(11, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Consolas')
+        view.SetFont(font1)
         view.SetValue(data)
 
         self._sizer.Add(view, 1, wx.EXPAND)
@@ -171,6 +174,9 @@ class ValuesListCtrl(wx.ListCtrl):
         self.SetItem(n, 2, str(entry['size']))
         self.SetItem(n, 3, self.timeToString(entry, 'write_date', 'write_time'))
 
+        if 'del' in entry:
+            self.SetItem(n, 4, 'DELETED FILE')
+
     def add_value(self, value):
         """
         add registry value list
@@ -183,20 +189,20 @@ class ValuesListCtrl(wx.ListCtrl):
         n = self.GetItemCount()
         self.InsertItem(n, value.name())
         self.SetItem(n, 1, value.value_type_str())
-        self.SetItem(n, 3, str(value.timestamp()))
         self.SetItem(n, 4, str(value.raw_data()))
         self.values[value.name()] = value
+        print(self.values)
 
     def get_value(self, valuename):
         return self.values[valuename]
 
     def timeToString(self, entry, date_type, time_type):
+        # TODO: 계산하면서 에러있는거같으니까 수정해야한다
         time_string = str(((entry[date_type] & 65024) >> 9) + 1980) + '/' + str(
             (entry[date_type] & 480) >> 5) + '/' + str(entry[date_type] & 31) + ' - ' + str(
             (entry[time_type] & 63488) >> 11) + ':' + str(
             (entry[time_type] & 2016) >> 5) + ':' + str(
             (entry[time_type] & 31) * 2)
-        #TODO: 계산하면서 에러있는거같으니까 수정해야한다
         return time_string
 
 
@@ -204,37 +210,30 @@ class DirTreeCtrl(wx.TreeCtrl):
     """
     Treeview control that displays the Registry key structure.
     """
+
     def __init__(self, *args, **kwargs):
         super(DirTreeCtrl, self).__init__(*args, **kwargs)
         self.Bind(wx.EVT_TREE_ITEM_EXPANDING, self.OnExpandDir)
 
+        # put directory, file icon to tree
         il = wx.ImageList(16, 16)
         self.fldropenidx = il.Add(wx.ArtProvider.GetBitmap(wx.ART_FOLDER_OPEN, wx.ART_OTHER, (16, 16)))
         self.fldridx = il.Add(wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16)))
         self.fileidx = il.Add(wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16, 16)))
+        self.deleteidx = il.Add(wx.ArtProvider.GetBitmap(wx.ART_DELETE, wx.ART_OTHER, (16,16)))
         self.AssignImageList(il)
 
+    # add root directory from disk Image file to TreeListCtrl
     def add_directory(self, root_dir):
         root_key = root_dir.fatTreeStructure
 
         root_item = self.AddRoot(root_key.current_dir['sname'])  # 루트만드는곳
+
         self.SetItemImage(root_item, self.fldridx, wx.TreeItemIcon_Normal)
         self.SetItemImage(root_item, self.fldropenidx, wx.TreeItemIcon_Expanded)
 
         self.SetItemData(root_item, {"key": root_key, "has_expanded": False})
         if len(root_key.dir_obj_list) > 0:
-            self.SetItemHasChildren(root_item)
-
-    def add_registry(self, registry):
-        """
-        Add the registry to the control as the (a?) root element.
-        """
-        root_key = registry.root()
-        root_item = self.AddRoot(root_key.name())
-        self.SetItemData(root_item, {"key": root_key,
-                                   "has_expanded": False})
-
-        if len(root_key.subkeys()) > 0:
             self.SetItemHasChildren(root_item)
 
     def delete_registry(self):
@@ -265,6 +264,7 @@ class DirTreeCtrl(wx.TreeCtrl):
                 else:
                     node = self.GetNextSibling(node)
 
+    # append sub directory, registry to tree
     def _extend_dir(self, item):
         """
         Add Directory and Registry Key to TreeCtrlList
@@ -273,41 +273,50 @@ class DirTreeCtrl(wx.TreeCtrl):
             return
 
         dir = self.GetItemData(item)["key"]
-        #print(type(dir).__name__)
+        print(dir)
 
-        # Directory
-        if type(dir).__name__ == 'Dir':
+        # append Directory
+        if type(dir).__name__ == 'Dir': #Dir class
             try:
                 for subdir in dir.dir_obj_list:
-                    if 'name' in subdir.current_dir:
+                    if 'name' in subdir.current_dir:  # long file name
                         subdir_item = self.AppendItem(item, subdir.current_dir['name'])
 
-                    else:
+                    else:  # short file name
                         subdir_item = self.AppendItem(item, subdir.current_dir['sname'])
 
                     self.SetItemData(subdir_item, {"key": subdir,
-                                                 "has_expanded": False})
-                    self.SetItemImage(subdir_item, self.fldridx, wx.TreeItemIcon_Normal)
-                    self.SetItemImage(subdir_item, self.fldropenidx, wx.TreeItemIcon_Expanded)
+                                                   "has_expanded": False})
+                    if 'del' in subdir.current_dir:
+                        self.SetItemImage(subdir_item, self.deleteidx, wx.TreeItemIcon_Normal)
+
+                    else:
+                        self.SetItemImage(subdir_item, self.fldridx, wx.TreeItemIcon_Normal)
+                        self.SetItemImage(subdir_item, self.fldropenidx, wx.TreeItemIcon_Expanded)
 
                     if len(subdir.dir_obj_list) > 0 or len(subdir.reg_obj_list) > 0:
                         self.SetItemHasChildren(subdir_item)
             except AttributeError:
                 pass
 
+            # append registry file
             try:
                 for subreg in dir.reg_obj_list:
-                    key = subreg.root()
-                    subreg_item = self.AppendItem(item, key.filename())
-                    self.SetItemData(subreg_item, {"key": key,
+                    # key = subreg.root()
+                    # subreg_item = self.AppendItem(item, key.filename())
+                    # self.SetItemData(subreg_item, {"key": key,
+                    #                                "has_expanded": False})
+
+                    subreg_item = self.AppendItem(item, subreg._filename)
+                    self.SetItemData(subreg_item, {"key": subreg.root(),
                                                    "has_expanded": False})
                     self.SetItemImage(subreg_item, self.fileidx, wx.TreeItemIcon_Normal)
                     self.SetItemHasChildren(subreg_item)
             except AttributeError:
                 pass
 
-        # Registry
-        elif type(dir).__name__ == 'RegistryKey':
+        # append registry subkeys
+        elif type(dir).__name__ == 'RegistryKey':   # RegistryKey class
             try:
                 for subkey in dir.subkeys():
                     subkey_item = self.AppendItem(item, subkey.name())
@@ -322,6 +331,7 @@ class DirTreeCtrl(wx.TreeCtrl):
 
         self.GetItemData(item)["has_expanded"] = True
 
+    # tree + onclicked (expanded)
     def OnExpandDir(self, event):
         item = event.GetItem()
         if not item.IsOk():
@@ -438,6 +448,7 @@ class RegistryFileView(wx.Panel):
     def __init__(self, parent, fileobj=None, filename=None):
         super(RegistryFileView, self).__init__(parent, -1, size=(1280, 840))
         self._filename = filename
+        self.fileobj = fileobj
 
         vsplitter = wx.SplitterWindow(self, -1)
         panel_left = wx.Panel(vsplitter, -1)
@@ -466,29 +477,37 @@ class RegistryFileView(wx.Panel):
         # give enough space in the data display for the hex output
         vsplitter.SetSashPosition(250, True)
         hsplitter.SetSashPosition(250, True)
-        vsplitter_data.SetSashPosition(200, True)
+        vsplitter_data.SetSashPosition(150, True)
         _expand_into(self, vsplitter)
         self.Centre()
 
-        self._value_list_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueSelected)
-        self._offset_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueSelected)
-        self._hex_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueSelected)
+        self._value_list_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueClicked)
+        self._offset_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueClicked)
+        self._hex_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueClicked)
         self._tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnDirClicked)
 
-        if fileobj != None:
-            self._tree.add_directory(fileobj)
+        if self.fileobj != None:
+            # tree 생성
+            self._tree.add_directory(self.fileobj)
+
+            # vbr만큼 읽어서 초기 화면에 띄워주기
+            data = self.fileobj.get_vbr_data_binary()
+            offset = self.fileobj.get_offsetText(data, 0)
+            hex_data = self.fileobj.get_hexText(data)
+            self._offset_view.display_value(offset)
+            self._hex_view.display_value(hex_data)
 
     def OnDirClicked(self, event):
         item = event.GetItem()
         if not item.IsOk():
             item = self._tree.GetSelection()
 
-        key = self._tree.GetItemData(item)["key"]
+        key_info = self._tree.GetItemData(item)["key"]
 
         parent = self.GetParent()
         while parent:
             try:
-                parent.SetStatusText(key.path())
+                parent.SetStatusText(key_info.path())
             except AttributeError:
                 pass
             parent = parent.GetParent()
@@ -497,50 +516,54 @@ class RegistryFileView(wx.Panel):
         self._hex_view.clear_value()
         self._value_list_view.clear_values()
 
+        # directory일 경우
         try:
-            for files in key.file_list:
+            # valueListCtrl에 파일 출력
+            for files in key_info.file_list:
                 self._value_list_view.add_file(files)
+
+            # '새 볼륨' 클릭하면 vbr만큼만 출력
+            # TODO offset, hex Thread
+            if key_info.current_dir['cluster'] == 0:
+                data = self.fileobj.get_vbr_data_binary()
+                offset = self.fileobj.get_offsetText(data, 0)
+                hex_data = self.fileobj.get_hexText(data)
+                self._offset_view.display_value(offset)
+                self._hex_view.display_value(hex_data)
+
+            # 일반 directory 클릭하면 해당 data 출력
+            # TODO: offset, hex thread
+            else:
+                self.print_hex_data(key_info.current_dir['cluster'])
         except AttributeError:
-            #TODO: registry value 출력
-            # for value in key.values():
-            #     self._value_list_view.add_value(value)
             pass
 
-        # for value in key.values():
-        #     self._value_list_view.add_value(value)
-            # self._offset_view.add_value(value)
-            # self._hex_view.add_value(value)
+        # registry일 경우
+        try:
+            for value in key_info.values():
+                self._value_list_view.add_value(value)
 
-    def OnKeyClicked(self, event):
-        item = event.GetItem()
-        if not item.IsOk():
-            item = self._tree.GetSelection()
+            #cluster = int(self.offset_to_cluster(offset))
+            #self.print_hex_data(cluster)
+        except AttributeError:
+            pass
 
-        key = self._tree.GetItemData(item)["key"]
-
-        parent = self.GetParent()
-        while parent:
-            try:
-                parent.SetStatusText(key.path())
-            except AttributeError:
-                pass
-            parent = parent.GetParent()
-
-        self._offset_view.clear_value()
-        self._hex_view.clear_value()
-        self._value_list_view.clear_values()
-
-        for value in key.values():
-            self._value_list_view.add_value(value)
-            # self._offset_view.add_value(value)
-            # self._hex_view.add_value(value)
-
-    def OnValueSelected(self, event):
+    def OnValueClicked(self, event):
         item = event.GetItem()
 
+        # TODO: offset, hex data 출력
         value = self._value_list_view.get_value(item.GetText())
-        self._hex_view.display_value(value)
-        self._offset_view.display_value(value)
+        print(value)
+        #self._hex_view.display_value(value)
+        #self._offset_view.display_value(value)
+
+    # TODO: use thread to shorten time in processing
+    def print_hex_data(self, cluster):
+        data = self.fileobj.get_content(cluster)
+        offset = self.fileobj.get_offsetText(data, cluster)
+        hex_data = self.fileobj.get_hexText(data)
+        self._offset_view.display_value(offset)
+        self._hex_view.display_value(hex_data)
 
     def filename(self):
         """
@@ -562,6 +585,10 @@ class RegistryFileView(wx.Panel):
         Select a Registry key path specified as a string in the relevant panes.
         """
         self._tree.select_path(path)
+
+    def offset_to_cluster(self, offset):
+        # ((cluster - 2) * self.spc + self.first_data_sector) * self.bps
+        return ((offset / self.fileobj.bps) - self.fileobj.fds) / self.fileobj.spc + 2
 
 
 class RegistryFileViewer(wx.Frame):
@@ -608,7 +635,7 @@ class RegistryFileViewer(wx.Frame):
         p.SetSizer(sizer)
         self.Layout()
 
-        #처음 프로그램 실행했을 때 레이아웃 보여줌
+        # 처음 프로그램 실행했을 때 레이아웃 보여줌
         initial = RegistryFileView(self._nb)
         self._nb.AddPage(initial, basename(""))
 
@@ -618,7 +645,7 @@ class RegistryFileViewer(wx.Frame):
         """
         self.dskImg = General.RegistryImage(filename)
 
-        #초기 페이지 삭제
+        # 초기 페이지 삭제
         if self._nb.GetPageText(0) == "":
             self._nb.DeletePage(0)
 

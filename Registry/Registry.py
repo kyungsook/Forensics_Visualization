@@ -389,6 +389,8 @@ class Registry(object):
         self._buf = f.read(size)
         self._regf = RegistryParse.REGFBlock(self._buf, 0, False)
         self._filename = filename
+        self._offset = offset
+        self._size = size
 
     def hive_name(self):
         """Returns the internal file name"""

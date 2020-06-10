@@ -48,6 +48,9 @@ class RegistryImage:
         DBfd.write(src)
         DBfd.close()
 
+    def get_vbr_data_binary(self):
+        return self.imgFile.read_sector(0, 32)
+
     def get_content(self, cluster):
         '''
         read all data from connected FAT

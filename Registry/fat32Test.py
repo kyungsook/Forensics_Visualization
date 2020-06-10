@@ -38,6 +38,9 @@ class FAT32:
         self.fd.seek(offset * self.bps)
         return self.fd.read(self.bps * count)
 
+    def read_all(self):
+        return self.fd.read()
+
     def read_cluster(self, cluster, count=1):
         if cluster < 2:
             raise Exception("Can't read under cluster 2")
@@ -225,6 +228,7 @@ class FAT32:
 
                     if entry['real_ext'] == 'registry hive file':
                         offset = self.cluster_to_offset(entry['cluster'])
+
                         if 'name' in entry:
                             temp_reg = Registry.Registry(self.fd, offset, entry['size'], filename=entry['name'])
 
