@@ -55,7 +55,7 @@ class ExportHistory():
                 ws.cell(row=i + 2, column=j + 1).value = general[i][j]
 
         wb.save(filename='./general file history.xlsx')
-        os.system('start excel.exe "%s\\general history.xlsx"' % (sys.path[0],))
+        os.system('start excel.exe "%s\\general file history.xlsx"' % (sys.path[0],))
 
     def urlExport2Excel(self, chrome, whale):
         wb = Workbook()
