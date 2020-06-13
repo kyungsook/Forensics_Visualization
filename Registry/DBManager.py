@@ -97,7 +97,7 @@ class DBManager:
             temp = self.cur.fetchall()
 
             for i in temp:
-                if i[0] == "Deleted File":
+                if i[0] == "deleted file":
                     delRes[i[1]] = i[2]
                 elif i[0] == "HWP":
                     hwpRes[i[1]] = i[2]
