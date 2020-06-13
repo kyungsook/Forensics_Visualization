@@ -86,9 +86,9 @@ class RegistryImage:
             byte = data[chars-1]
 
             # main text 가 중앙에 있는것
-            hexText += (format(byte, '02X') + self.space)
+            hexText += '%02X ' % byte
 
-            if chars % self.rowLength == 0 and chars != 0:  #길이 16마다 개행
+            if chars % self.rowLength == 0:  #길이 16마다 개행
                 hexText += '\n'
 
             elif chars % self.rowSpacing == 0:  #길이 4마다 띄어쓰기 2번

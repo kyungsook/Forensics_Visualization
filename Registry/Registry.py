@@ -240,13 +240,14 @@ class RegistryKey(object):
     A RegistryKey may have a set of values associated with it,
       as well as a last modified timestamp.
     """
-    def __init__(self, nkrecord, filename=''):
+    def __init__(self, nkrecord, fileoffset=0, filename=''):
         """
 
         Arguments:
         - `NKRecord`:
         """
         self._nkrecord = nkrecord
+        self._fileoffset = fileoffset
         self._filename = filename
 
     def __str__(self):
@@ -306,7 +307,7 @@ class RegistryKey(object):
             return []
 
         l = self._nkrecord.subkey_list()
-        return [RegistryKey(k) for k in l.keys()]
+        return [RegistryKey(k, self._fileoffset) for k in l.keys()]
 
     def subkey(self, name):
         """
@@ -319,7 +320,7 @@ class RegistryKey(object):
 
         for k in self._nkrecord.subkey_list().keys():
             if k.name().lower() == name.lower():
-                return RegistryKey(k)
+                return RegistryKey(k, self._fileoffset)
         raise RegistryKeyNotFoundException(self.path() + "\\" + name)
 
     def values(self):
@@ -431,7 +432,7 @@ class Registry(object):
         """
         Return the first RegistryKey in the hive.
         """
-        return RegistryKey(self._regf.first_key(), self._filename)
+        return RegistryKey(self._regf.first_key(), self._offset, self._filename)
 
     def open(self, path):
         """
@@ -443,7 +444,7 @@ class Registry(object):
         # is the first registry key always the root?
         # are there any other keys at this
         # level? is this the name of the hive?
-        return RegistryKey(self._regf.first_key()).find_key(path)
+        return RegistryKey(self._regf.first_key(), self._offset).find_key(path)
 
 def rec2(key, depth=0):
     print("\t" * depth + key.path())

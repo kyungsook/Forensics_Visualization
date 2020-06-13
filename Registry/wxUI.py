@@ -97,16 +97,17 @@ class DataPanel(wx.Panel):
         super(DataPanel, self).__init__(*args, **kwargs)
         self._sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self._sizer)
+        self.view = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        self._sizer.Add(self.view, 1, wx.EXPAND)
+        self._sizer.Layout()
 
     def display_value(self, data):
         self._sizer.Clear()
-
-        view = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY)
         font1 = wx.Font(11, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Consolas')
-        view.SetFont(font1)
-        view.SetValue(data)
+        self.view.SetFont(font1)
+        self.view.SetValue(data)
 
-        self._sizer.Add(view, 1, wx.EXPAND)
+        self._sizer.Add(self.view, 1, wx.EXPAND)
         self._sizer.Layout()
 
     def clear_value(self):
@@ -190,9 +191,8 @@ class ValuesListCtrl(wx.ListCtrl):
         self.InsertItem(n, value.name())
         self.SetItem(n, 1, value.value_type_str())
         self.SetItem(n,3, str(timestamp))
-        self.SetItem(n, 4, value.value())#고치기 이상하게 나옴
+        self.SetItem(n, 4, str(value.value()))#고치기 이상하게 나옴
         self.values[value.name()] = value
-        print(self.values)
 
     def get_value(self, valuename):
         return self.values[valuename]
@@ -273,13 +273,12 @@ class DirTreeCtrl(wx.TreeCtrl):
         if self.GetItemData(item)["has_expanded"]:
             return
 
-        dir = self.GetItemData(item)["key"]
-        print(dir)
+        dir_item = self.GetItemData(item)["key"]
 
         # append Directory
-        if type(dir).__name__ == 'Dir': #Dir class
+        if type(dir_item).__name__ == 'Dir': #Dir class
             try:
-                for subdir in dir.dir_obj_list:
+                for subdir in dir_item.dir_obj_list:
                     if 'name' in subdir.current_dir:  # long file name
                         subdir_item = self.AppendItem(item, subdir.current_dir['name'])
 
@@ -302,24 +301,29 @@ class DirTreeCtrl(wx.TreeCtrl):
 
             # append registry file
             try:
-                for subreg in dir.reg_obj_list:
-                    # key = subreg.root()
-                    # subreg_item = self.AppendItem(item, key.filename())
-                    # self.SetItemData(subreg_item, {"key": key,
-                    #                                "has_expanded": False})
-
+                for subreg in dir_item.reg_obj_list:
                     subreg_item = self.AppendItem(item, subreg._filename)
-                    self.SetItemData(subreg_item, {"key": subreg.root(),
+                    self.SetItemData(subreg_item, {"key": subreg,
                                                    "has_expanded": False})
                     self.SetItemImage(subreg_item, self.fileidx, wx.TreeItemIcon_Normal)
                     self.SetItemHasChildren(subreg_item)
             except AttributeError:
                 pass
 
+        elif type(dir_item).__name__ == 'Registry':
+            key = dir_item.root()
+            root_item = self.AppendItem(item, key.name())
+            self.SetItemData(root_item, {"key": key,
+                                           "has_expanded": False})
+            self.SetItemImage(root_item, self.fldridx, wx.TreeItemIcon_Normal)
+
+            if len(key.subkeys()) > 0:
+                self.SetItemHasChildren(root_item)
+
         # append registry subkeys
-        elif type(dir).__name__ == 'RegistryKey':   # RegistryKey class
+        elif type(dir_item).__name__ == 'RegistryKey':   # RegistryKey class
             try:
-                for subkey in dir.subkeys():
+                for subkey in dir_item.subkeys():
                     subkey_item = self.AppendItem(item, subkey.name())
                     self.SetItemData(subkey_item, {"key": subkey,
                                                    "has_expanded": False})
@@ -485,7 +489,9 @@ class RegistryFileView(wx.Panel):
 
         self._value_list_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueClicked)
         self._offset_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueClicked)
+        #self._offset_view.view.Bind(wx.EVT_SCROLLWIN, self.OnScrollOffset)
         self._hex_view.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnValueClicked)
+        #self._hex_view.view.Bind(wx.EVT_SCROLLBAR, self.OnScrollOffset)
         self._tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnDirClicked)
 
         if self.fileobj != None:
@@ -499,12 +505,25 @@ class RegistryFileView(wx.Panel):
             self._offset_view.display_value(offset)
             self._hex_view.display_value(hex_data)
 
+    def OnScrollOffset(self, event):
+        #TODO: synchronize scroll of offset view and hex view
+        print('aaaaaaa')
+
+    def OnScrollHex(self, event):
+        # TODO: synchronize scroll of offset view and hex view
+        pos = event.GetPosition()
+        #self._offset_view.view.SetScrollPos(wx.SB_VERTICAL, pos)
+        #self._hex_view.view.SetScrollPos(wx.SB_VERTICAL, pos)
+        print('bbbbbbb')
+
     def OnDirClicked(self, event):
         item = event.GetItem()
         if not item.IsOk():
             item = self._tree.GetSelection()
 
         key_info = self._tree.GetItemData(item)["key"]
+        print(type(key_info).__name__)
+
         parent = self.GetParent()
         while parent:
             try:
@@ -518,7 +537,7 @@ class RegistryFileView(wx.Panel):
         self._value_list_view.clear_values()
 
         # directory일 경우
-        try:
+        if type(key_info).__name__ == 'Dir':
             # valueListCtrl에 파일 출력
             for files in key_info.file_list:
                 self._value_list_view.add_file(files)
@@ -535,19 +554,26 @@ class RegistryFileView(wx.Panel):
             # 일반 directory 클릭하면 해당 data 출력
             # TODO: offset, hex thread
             else:
-                self.print_hex_data(key_info.current_dir['cluster'])
-        except AttributeError:
-            pass
+                self.print_file_hex(key_info.current_dir['cluster'])
 
-        # registry일 경우
-        try:
+        # registry file 이름일 경우
+        if type(key_info).__name__ == 'Registry':
+            print('regfile ' + str(key_info._offset))
+            cluster = int(self.offset_to_cluster(key_info._offset))
+            self.print_file_hex(cluster)
+
+        # registry key일 경우
+        if type(key_info).__name__ == 'RegistryKey':
             for value in key_info.values():
-                self._value_list_view.add_value(value,key_info.timestamp())
+                self._value_list_view.add_value(value, key_info.timestamp())
 
+            #cluster = int(self.offset_to_cluster(key_info._nkrecord._offset + key_info._fileoffset))
+            #self.print_file_hex(cluster)
+            #print(key_info._nkrecord._parent.size())
+            #print(key_info._nkrecord._offset + key_info._fileoffset) # key의 레지스트리 파일 내 offset
             #cluster = int(self.offset_to_cluster(offset))
             #self.print_hex_data(cluster)
-        except AttributeError:
-            pass
+
 
     def OnValueClicked(self, event):
         item = event.GetItem()
@@ -556,24 +582,24 @@ class RegistryFileView(wx.Panel):
         self._offset_view.clear_value()
         self._hex_view.clear_value()
         for i in key_info : #for문 돌면서 name을 찾아서 클릭한 이름 가져와서 비교 후 그 entry에 있는 클러스터 정보 출력
-            if i['name'] == str(item.GetText()) :
-                print(i)
-                self.print_hex_data(i['cluster'])
+            if 'name' in i and i['name'] == str(item.GetText()):
+                self.print_file_hex(i['cluster'])
                 break
 
+            elif i['sname'] == str(item.GetText()):
+                self.print_file_hex(i['cluster'])
+                break
 
-        # TODO: offset, hex data 출력
-        #value = self._value_list_view.get_value(item.GetText())
-      #  print(self._hex_view.display_value(value))
-       # print(self._offset_view.display_value(value))
-
-    # TODO: use thread to shorten time in processing
-    def print_hex_data(self, cluster):
+    def print_file_hex(self, cluster):
         data = self.fileobj.get_content(cluster)
         offset = self.fileobj.get_offsetText(data, cluster)
         hex_data = self.fileobj.get_hexText(data)
         self._offset_view.display_value(offset)
         self._hex_view.display_value(hex_data)
+
+    # TODO: registry key 눌렀을 때 offset, hex 출력
+    def print_reg_hex(self, offset, size):
+        print('aaaa')
 
     def filename(self):
         """
