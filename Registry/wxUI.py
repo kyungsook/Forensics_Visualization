@@ -378,13 +378,13 @@ class FilterFrame(wx.Frame):  # visualization filter
         date_to = self.text_to.GetValue()
 
         if self.rbox.GetStringSelection() == self.viewList[0]:
-            export.export_history('Hive', date_from, date_to)
+            export.ExportHistory('Hive', date_from, date_to)
             print("hive")
         elif self.rbox.GetStringSelection() == self.viewList[1]:
-            export.export_history('GeneralFile', date_from, date_to)
+            export.ExportHistory('GeneralFile', date_from, date_to)
             print("general file")
         elif self.rbox.GetStringSelection() == self.viewList[2]:
-            export.export_history('urls', date_from, date_to)
+            export.ExportHistory('urls', date_from, date_to)
             print("urls")
         print("export success!")
 
