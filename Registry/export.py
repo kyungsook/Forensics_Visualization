@@ -1,3 +1,5 @@
+import os
+import sys
 from openpyxl import Workbook
 from openpyxl.utils.exceptions import IllegalCharacterError
 
@@ -38,6 +40,7 @@ class ExportHistory():
                     IllegalCharacterError()
 
         wb.save(filename='./registry history.xlsx')
+        os.system('start excel.exe "%s\\registry history.xlsx"' % (sys.path[0],))
 
     def generalExport2Excel(self, general):
         wb = Workbook()
@@ -52,6 +55,7 @@ class ExportHistory():
                 ws.cell(row=i + 2, column=j + 1).value = general[i][j]
 
         wb.save(filename='./general file history.xlsx')
+        os.system('start excel.exe "%s\\general history.xlsx"' % (sys.path[0],))
 
     def urlExport2Excel(self, chrome, whale):
         wb = Workbook()
@@ -75,7 +79,7 @@ class ExportHistory():
                 ws2.cell(row=i + 2, column=j + 1).value = whale[i][j].encode('utf-8').strip()
 
         wb.save(filename='./url history.xlsx')
-
+        os.system('start excel.exe "%s\\url history.xlsx"' % (sys.path[0],))
 
 
 if __name__ == '__main__':
