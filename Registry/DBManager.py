@@ -34,26 +34,18 @@ class DBManager:
     def select_all(self, tableName, date_from, date_to):
         self.cur = self.con.cursor()
         result = ""
+        
         if tableName == 'Hive':
-            print("select hive")
             self.cur.execute("SELECT * FROM Hive WHERE Timestamp BETWEEN '%s' AND '%s'" % (date_from, date_to))
 
         elif tableName == 'GeneralFile':
-            print("select generalFile")
             self.cur.execute("SELECT * FROM GeneralFile WHERE WriteTime BETWEEN '%s' AND '%s';" % (date_from, date_to))
-            #print("generalFile")
-            date_from = date_from.replace('-', '/')
-            date_to = date_to.replace('-', '/')
-            sql_select = "SELECT FileSig, substr(WriteTime, 0, 11) AS WriteDate, COUNT(*) AS Num " \
-                         "FROM GeneralFile Where WriteDate BETWEEN '%s' AND '%s' GROUP BY FileSig, WriteDate " \
-                         "ORDER BY WriteDate" % (date_from, date_to)
 
         elif tableName == 'urls':
             print("select urls")
 
         self.con.commit()
         result = self.cur.fetchall()
-        print(type(result), result)
         return result
 
     def order_by_date(self, tableName, date_from, date_to):
@@ -102,9 +94,6 @@ class DBManager:
             self.cur.execute("SELECT FileSig, substr(WriteTime, 0, 11) AS WriteDate, COUNT(*) AS Num "
                              "FROM GeneralFile WHERE WriteDate BETWEEN '%s' AND '%s' "
                              "GROUP BY FileSig, substr(WriteTime, 0, 11) ORDER BY WriteDate" % (date_from, date_to))
-            # self.cur.execute("SELECT FileSig, WriteTime, COUNT(*) AS Num "
-            #                  "FROM GeneralFile Where substr(WriteTime, 0, 11) BETWEEN '%s' AND '%s' "
-            #                  "GROUP BY FileSig, substr(WriteTime, 0, 11) ORDER BY WriteTime" % (date_from, date_to))
             self.con.commit()
             temp = self.cur.fetchall()
 
@@ -129,8 +118,9 @@ class DBManager:
             chromeRes = {}
             whaleRes = {}
 
-            self.cur.execute("SELECT date(datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime')) AS lvt,"
-                             " COUNT(*) FROM urls_chrome WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt;" % (date_from, date_to))
+            self.cur.execute(
+                "SELECT datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime') AS lvt,"
+                " COUNT(*) FROM urls_chrome WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt;" % (date_from, date_to))
             self.con.commit()
             tot_chrome = self.cur.fetchall()
 
@@ -138,7 +128,7 @@ class DBManager:
                 chromeRes[i[0]] = i[1]
 
             self.cur.execute(
-                "SELECT date(datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime')) AS lvt,"
+                "SELECT datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime') AS lvt,"
                 " COUNT(*) FROM urls_whale WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt;" % (date_from, date_to))
             self.con.commit()
             tot_whale = self.cur.fetchall()
@@ -168,46 +158,35 @@ class DBManager:
             return general_history
 
         elif tableName == 'urls':
-            self.cur.execute("SELECT url, title,"
-                             "date(datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime')) AS lvt "
-                             "FROM urls_chrome WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt ORDER BY lvt;"
-                             % (date_from, date_to))
+            self.cur.execute(
+                "SELECT datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime') AS lvt,"
+                " COUNT(*) FROM urls_chrome WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt;" % (date_from, date_to))
             self.con.commit()
             chrome_history = self.cur.fetchall()
 
-            self.cur.execute("SELECT url, title,"
-                             "date(datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime')) AS lvt "
-                             "FROM urls_whale WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt ORDER BY lvt;"
-                             % (date_from, date_to))
+            self.cur.execute(
+                "SELECT datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime') AS lvt,"
+                " COUNT(*) FROM urls_whale WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt;" % (date_from, date_to))
             self.con.commit()
             whale_history = self.cur.fetchall()
 
             return chrome_history, whale_history
-
-
-        print(result)
-        return result
-
 
     def close_db(self):
         self.con.commit()
         self.con.close()
         print("close db")
 
-    def just_test(self):
-        print("this is test method")
 
 if __name__ == '__main__':
     print("DBManager")
     db = DBManager('./test.db')
-    str_from = '2020-03-01'
-    str_to = '2020-03-31'
+    str_from = '2020-04-01'
+    str_to = '2020-05-01'
 
     # db.order_by_date('GeneralFile', str_from, str_to)
     # db.select_all(str_from, str_to)
-    db.select_history('Hive', str_from, str_to)
+    db.select_history('urls', str_from, str_to)
 
-    str_to = '2020-05-01'
-    db.select_record('GeneralFile', str_from, str_to)
     # db.drop_table('GeneralFile')
     db.close_db()
