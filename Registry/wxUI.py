@@ -178,7 +178,7 @@ class ValuesListCtrl(wx.ListCtrl):
         if 'del' in entry:
             self.SetItem(n, 4, 'DELETED FILE')
 
-    def add_value(self, value,timestamp):
+    def add_value(self, value, timestamp):
         """
         add registry value list
         Column(0, "Name")
@@ -199,11 +199,11 @@ class ValuesListCtrl(wx.ListCtrl):
 
     def timeToString(self, entry, date_type, time_type):
         # TODO: 계산하면서 에러있는거같으니까 수정해야한다
-        time_string = str(((entry[date_type] & 65024) >> 9) + 1980) + '/' + str(
-            (entry[date_type] & 480) >> 5) + '/' + str(entry[date_type] & 31) + ' - ' + str(
-            (entry[time_type] & 63488) >> 11) + ':' + str(
-            (entry[time_type] & 2016) >> 5) + ':' + str(
-            (entry[time_type] & 31) * 2)
+        time_string = str('%02d' % (((entry[date_type] & 65024) >> 9) + 1980)) + '/' + str(
+            '%02d' % ((entry[date_type] & 480) >> 5)) + '/' + str('%02d' % (entry[date_type] & 31)) + ' - ' + str(
+            '%02d' % ((entry[time_type] & 63488) >> 11)) + ':' + str(
+            '%02d' % ((entry[time_type] & 2016) >> 5)) + ':' + str(
+            '%02d' % ((entry[time_type] & 31) * 2))
         return time_string
 
 
@@ -522,7 +522,7 @@ class RegistryFileView(wx.Panel):
             item = self._tree.GetSelection()
 
         key_info = self._tree.GetItemData(item)["key"]
-        print(type(key_info).__name__)
+        #print(type(key_info).__name__)
 
         parent = self.GetParent()
         while parent:
@@ -567,6 +567,7 @@ class RegistryFileView(wx.Panel):
             for value in key_info.values():
                 self._value_list_view.add_value(value, key_info.timestamp())
 
+            self.print_reg_hex(offset=(key_info._nkrecord._offset + key_info._fileoffset), size=key_info._nkrecord._cell_size)
             #cluster = int(self.offset_to_cluster(key_info._nkrecord._offset + key_info._fileoffset))
             #self.print_file_hex(cluster)
             #print(key_info._nkrecord._parent.size())
@@ -582,6 +583,10 @@ class RegistryFileView(wx.Panel):
         self._offset_view.clear_value()
         self._hex_view.clear_value()
         for i in key_info : #for문 돌면서 name을 찾아서 클릭한 이름 가져와서 비교 후 그 entry에 있는 클러스터 정보 출력
+            if 'del' in i:
+                self._offset_view.clear_value()
+                self._hex_view.clear_value()
+
             if 'name' in i and i['name'] == str(item.GetText()):
                 self.print_file_hex(i['cluster'])
                 break
@@ -599,7 +604,23 @@ class RegistryFileView(wx.Panel):
 
     # TODO: registry key 눌렀을 때 offset, hex 출력
     def print_reg_hex(self, offset, size):
-        print('aaaa')
+        mod = offset % 16
+        offset = offset - mod
+        self.fileobj.imgFile.fd.seek(offset)
+        data = self.fileobj.imgFile.fd.read(size + mod)
+        offset_data = self.print_reg_offset(offset, size + mod)
+        hex_data = self.fileobj.get_hexText(data)
+        self._offset_view.display_value(offset_data)
+        self._hex_view.display_value(hex_data)
+
+    def print_reg_offset(self, offset, size):
+        offset_txt = ''
+
+        for num in range(offset, offset+size, 16):
+            offset_txt += format(num, '08x')+'\n'
+
+        return offset_txt
+
 
     def filename(self):
         """

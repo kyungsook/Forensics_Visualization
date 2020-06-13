@@ -506,7 +506,7 @@ class REGFBlock(RegistryBlock):
         key_offset = first_hbin.absolute_offset(self.unpack_dword(0x24))
 
         d = HBINCell(self._buf, key_offset, first_hbin)
-        return NKRecord(self._buf, d.data_offset(), first_hbin)
+        return NKRecord(self._buf, d.data_offset(), first_hbin, d.size())
 
     def hbins(self):
         """
@@ -643,7 +643,7 @@ class HBINCell(RegistryBlock):
         if id_ == b"vk":
             return VKRecord(self._buf, self.data_offset(), self)
         elif id_ == b"nk":
-            return NKRecord(self._buf, self.data_offset(), self)
+            return NKRecord(self._buf, self.data_offset(), self, self.size())
         elif id_ == b"lf":
             return LFRecord(self._buf, self.data_offset(), self)
         elif id_ == b"lh":
@@ -1376,7 +1376,7 @@ class DirectSubkeyList(SubkeyList):
             key_offset = self.abs_offset_from_hbin_offset(self.unpack_dword(key_index))
 
             d = HBINCell(self._buf, key_offset, self)
-            yield NKRecord(self._buf, d.data_offset(), self)
+            yield NKRecord(self._buf, d.data_offset(), self, d.size())
             key_index += 8
 
 
@@ -1409,7 +1409,7 @@ class LIRecord(DirectSubkeyList):
             key_offset = self.abs_offset_from_hbin_offset(self.unpack_dword(key_index))
 
             d = HBINCell(self._buf, key_offset, self)
-            yield NKRecord(self._buf, d.data_offset(), self)
+            yield NKRecord(self._buf, d.data_offset(), self, d.size())
             key_index += 4
 
 
@@ -1468,7 +1468,7 @@ class NKRecord(Record):
     It contains pointers/offsets to the ValueList (values associated with the given record),
     and to subkeys.
     """
-    def __init__(self, buf, offset, parent):
+    def __init__(self, buf, offset, parent, size=0):
         """
         Constructor.
         Arguments:
@@ -1480,6 +1480,8 @@ class NKRecord(Record):
         _id = self.unpack_string(0x0, 2)
         if _id != b"nk":
             raise ParseException("Invalid NK Record ID")
+
+        self._cell_size = size
 
     def __str__(self):
         classname = self.classname()
@@ -1587,7 +1589,7 @@ class NKRecord(Record):
         offset = self.abs_offset_from_hbin_offset(self.unpack_dword(0x10))
 
         d = HBINCell(self._buf, offset, self.parent())
-        return NKRecord(self._buf, d.data_offset(), self.parent())
+        return NKRecord(self._buf, d.data_offset(), self.parent(), d.size())
 
     def sk_record(self):
         """
