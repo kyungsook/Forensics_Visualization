@@ -1,7 +1,6 @@
 import sqlite3
 import datetime
 
-
 class DBManager:
 
     def __init__(self, dbName):  # DBManager 클래스 초기화
@@ -34,7 +33,7 @@ class DBManager:
     def select_all(self, tableName, date_from, date_to):
         self.cur = self.con.cursor()
         result = ""
-        
+
         if tableName == 'Hive':
             self.cur.execute("SELECT * FROM Hive WHERE Timestamp BETWEEN '%s' AND '%s'" % (date_from, date_to))
 
@@ -119,7 +118,7 @@ class DBManager:
             whaleRes = {}
 
             self.cur.execute(
-                "SELECT datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime') AS lvt,"
+                "SELECT date(datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime')) AS lvt,"
                 " COUNT(*) FROM urls_chrome WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt;" % (date_from, date_to))
             self.con.commit()
             tot_chrome = self.cur.fetchall()
@@ -128,7 +127,7 @@ class DBManager:
                 chromeRes[i[0]] = i[1]
 
             self.cur.execute(
-                "SELECT datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime') AS lvt,"
+                "SELECT date(datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime')) AS lvt,"
                 " COUNT(*) FROM urls_whale WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt;" % (date_from, date_to))
             self.con.commit()
             tot_whale = self.cur.fetchall()
@@ -159,14 +158,14 @@ class DBManager:
 
         elif tableName == 'urls':
             self.cur.execute(
-                "SELECT datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime') AS lvt,"
-                " COUNT(*) FROM urls_chrome WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt;" % (date_from, date_to))
+                "SELECT url, title, datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime') AS lvt "
+                "FROM urls_chrome WHERE lvt BETWEEN '%s' AND '%s';" % (date_from, date_to))
             self.con.commit()
             chrome_history = self.cur.fetchall()
 
             self.cur.execute(
-                "SELECT datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime') AS lvt,"
-                " COUNT(*) FROM urls_whale WHERE lvt BETWEEN '%s' AND '%s' GROUP BY lvt;" % (date_from, date_to))
+                "SELECT url, title, datetime(last_visit_time/1000000-11644473600,'unixepoch','localtime') AS lvt "
+                "FROM urls_whale WHERE lvt BETWEEN '%s' AND '%s';" % (date_from, date_to))
             self.con.commit()
             whale_history = self.cur.fetchall()
 
@@ -177,10 +176,13 @@ class DBManager:
         self.con.close()
         print("close db")
 
-
+        
 if __name__ == '__main__':
     print("DBManager")
+
     db = DBManager('./test.db')
+
+
     str_from = '2020-04-01'
     str_to = '2020-05-01'
 
