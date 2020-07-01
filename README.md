@@ -1,6 +1,7 @@
 디지털 포렌식 증거 시각화 프로젝트
 ===================================
 2020 Spring Semester Capstone Design Project 2
+[UI 및 레지스트리 분석 참조]<https://github.com/williballenthin/python-registry>
 
 ## Development Goals
 
